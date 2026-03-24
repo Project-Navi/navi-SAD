@@ -28,6 +28,38 @@ FACTORIAL: list[int] = [1, 1, 2, 6, 24, 120, 720, 5040, 40320]
 
 
 # ---------------------------------------------------------------------------
+# PE eligibility policy
+# ---------------------------------------------------------------------------
+def recommended_min_pe_length(
+    D: int,
+    tau: int,
+    min_windows: int | None = None,
+) -> int:
+    """Minimum sequence length for PE computation under the current policy.
+
+    This is a **policy threshold**, not a mathematical requirement for PE
+    to be defined.  PE is structurally computable with as few as one
+    strict-order window, but statistically unreliable with too few.
+
+    The default policy requires at least D! ordinal windows, which is the
+    minimum for all D! possible patterns to appear at least once.
+
+    Args:
+        D: Embedding dimension.
+        tau: Embedding delay.
+        min_windows: Minimum number of ordinal windows required.
+            Defaults to ``math.factorial(D)`` when ``None``.
+
+    Returns:
+        Minimum sequence length that yields at least *min_windows* windows.
+    """
+    if min_windows is None:
+        min_windows = math.factorial(D)
+    # n_windows = n - (D - 1) * tau  =>  n = min_windows + (D - 1) * tau
+    return min_windows + (D - 1) * tau
+
+
+# ---------------------------------------------------------------------------
 # Lehmer code conversion
 # ---------------------------------------------------------------------------
 def permutation_to_index(perm: list[int], D: int) -> int:

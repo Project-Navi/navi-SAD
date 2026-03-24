@@ -6,11 +6,19 @@ import torch.nn as nn
 from navi_sad.core.hooks import HookManager, compute_sad_delta
 
 # ---------------------------------------------------------------------------
-# Fixtures
+# Fixtures — MHA (equal Q and KV heads)
 # ---------------------------------------------------------------------------
 HIDDEN = 64
 NUM_HEADS = 4
 HEAD_DIM = 16
+
+# ---------------------------------------------------------------------------
+# Fixtures — GQA (fewer KV heads than Q heads)
+# ---------------------------------------------------------------------------
+GQA_NUM_Q_HEADS = 8
+GQA_NUM_KV_HEADS = 2
+GQA_HEAD_DIM = 16
+GQA_HIDDEN = 64
 
 
 def _randn(shape: tuple[int, ...], seed: int = 42) -> torch.Tensor:
@@ -52,6 +60,58 @@ class FakeAttention(nn.Module):
             .view(B, L, self.num_heads, self.head_dim)
             .transpose(1, 2)
         )
+        scores = torch.matmul(q, k.transpose(-2, -1)) / (self.head_dim**0.5)
+        weights = torch.softmax(scores, dim=-1)
+        attn_out = torch.matmul(weights, v)
+        attn_out = attn_out.transpose(1, 2).contiguous().view(B, L, -1)
+        return self.o_proj(attn_out)
+
+
+class FakeGQAAttention(nn.Module):
+    """GQA attention module where num_kv_heads < num_q_heads.
+
+    Mimics Mistral-style grouped-query attention: K/V projections are smaller
+    than Q, and KV heads are expanded via repeat_interleave before attention.
+    """
+
+    def __init__(
+        self,
+        hidden_size: int = GQA_HIDDEN,
+        num_heads: int = GQA_NUM_Q_HEADS,
+        num_kv_heads: int = GQA_NUM_KV_HEADS,
+        head_dim: int = GQA_HEAD_DIM,
+    ) -> None:
+        super().__init__()
+        self.num_heads = num_heads
+        self.num_kv_heads = num_kv_heads
+        self.head_dim = head_dim
+        self.q_proj = nn.Linear(hidden_size, num_heads * head_dim, bias=False)
+        self.k_proj = nn.Linear(hidden_size, num_kv_heads * head_dim, bias=False)
+        self.v_proj = nn.Linear(hidden_size, num_kv_heads * head_dim, bias=False)
+        self.o_proj = nn.Linear(num_heads * head_dim, hidden_size, bias=False)
+
+    def forward(self, hidden_states: torch.Tensor) -> torch.Tensor:
+        B, L, _ = hidden_states.shape
+        q = (
+            self.q_proj(hidden_states)
+            .view(B, L, self.num_heads, self.head_dim)
+            .transpose(1, 2)
+        )
+        k = (
+            self.k_proj(hidden_states)
+            .view(B, L, self.num_kv_heads, self.head_dim)
+            .transpose(1, 2)
+        )
+        v = (
+            self.v_proj(hidden_states)
+            .view(B, L, self.num_kv_heads, self.head_dim)
+            .transpose(1, 2)
+        )
+        # GQA expansion
+        repeats = self.num_heads // self.num_kv_heads
+        k = k.repeat_interleave(repeats, dim=1)
+        v = v.repeat_interleave(repeats, dim=1)
+
         scores = torch.matmul(q, k.transpose(-2, -1)) / (self.head_dim**0.5)
         weights = torch.softmax(scores, dim=-1)
         attn_out = torch.matmul(weights, v)
@@ -214,3 +274,84 @@ class TestHookManager:
         )
 
         hm.uninstall()
+
+
+# ===========================================================================
+# TestHookManagerGQA — num_kv_heads != num_q_heads
+# ===========================================================================
+class TestHookManagerGQA:
+    """GQA-specific hook tests: K/V reshape must use num_kv_heads, not num_q_heads."""
+
+    def _make_module(self) -> FakeGQAAttention:
+        torch.manual_seed(0)
+        return FakeGQAAttention()
+
+    def test_gqa_non_interference(self) -> None:
+        """Output MUST be identical with and without hooks on a GQA module."""
+        attn = self._make_module()
+        x = _randn((1, 5, GQA_HIDDEN))
+
+        with torch.no_grad():
+            baseline = attn(x).clone()
+
+        hm = HookManager(sink_exclude=1)
+        hm.install_on_module(
+            attn,
+            layer_idx=0,
+            num_q_heads=GQA_NUM_Q_HEADS,
+            num_kv_heads=GQA_NUM_KV_HEADS,
+        )
+        with torch.no_grad():
+            hooked = attn(x).clone()
+
+        hm.uninstall()
+
+        assert torch.equal(baseline, hooked), (
+            f"GQA hook installation changed model output!\n"
+            f"Max diff: {(baseline - hooked).abs().max().item()}"
+        )
+
+    def test_gqa_captures_records(self) -> None:
+        """Hooks on GQA module produce at least one StepRecord."""
+        attn = self._make_module()
+        hm = HookManager(sink_exclude=1)
+        hm.install_on_module(
+            attn,
+            layer_idx=0,
+            num_q_heads=GQA_NUM_Q_HEADS,
+            num_kv_heads=GQA_NUM_KV_HEADS,
+        )
+
+        x = _randn((1, 5, GQA_HIDDEN))
+        with torch.no_grad():
+            attn(x)
+
+        records = hm.get_records()
+        assert len(records) > 0, "Expected StepRecord from GQA forward"
+        hm.uninstall()
+
+    def test_gqa_per_head_delta_matches_q_heads(self) -> None:
+        """per_head_delta length must equal Q head count, not KV head count.
+
+        This validates the post-expansion contract: after GQA expansion,
+        SAD computes one delta per Q head.
+        """
+        attn = self._make_module()
+        hm = HookManager(sink_exclude=1)
+        hm.install_on_module(
+            attn,
+            layer_idx=0,
+            num_q_heads=GQA_NUM_Q_HEADS,
+            num_kv_heads=GQA_NUM_KV_HEADS,
+        )
+
+        x = _randn((1, 5, GQA_HIDDEN))
+        with torch.no_grad():
+            attn(x)
+
+        records = hm.get_records()
+        for rec in records:
+            assert len(rec.per_head_delta) == GQA_NUM_Q_HEADS, (
+                f"per_head_delta has {len(rec.per_head_delta)} entries, "
+                f"expected {GQA_NUM_Q_HEADS} (Q head count, not KV={GQA_NUM_KV_HEADS})"
+            )

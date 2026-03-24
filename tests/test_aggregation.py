@@ -44,6 +44,16 @@ class TestAggregateDeltas:
         with pytest.raises(ValueError, match="Unknown aggregation method"):
             aggregate_deltas([], method="unknown")
 
+    def test_gap_in_step_idx_raises(self) -> None:
+        """Missing step_idx (gap) must raise ValueError, not silently zero-fill."""
+        steps = [
+            StepRecord(step_idx=0, layer_idx=0, per_head_delta=[0.1, 0.2]),
+            StepRecord(step_idx=2, layer_idx=0, per_head_delta=[0.5, 0.6]),
+            # step_idx=1 is missing — this is a step-accounting bug
+        ]
+        with pytest.raises(ValueError, match="non-contiguous"):
+            aggregate_deltas(steps)
+
     def test_multi_layer_multi_head(self) -> None:
         """2 layers x 4 heads at step 0 -> mean of 8 values."""
         steps = [

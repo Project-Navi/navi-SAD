@@ -133,7 +133,7 @@ class TestDeriveFromRaw:
         raw_path = tmp_path / "raw_pe.jsonl.gz"
         derived_path = tmp_path / "derived_pe.jsonl.gz"
 
-        # 20 steps -> 20 per-token deltas, well above MIN_PE_LENGTH=10
+        # 20 steps -> 20 per-token deltas, well above policy threshold
         self._write_raw(raw_path, [make_raw_record("pe-test", num_steps=20)])
 
         derive_from_raw(raw_path, derived_path)
@@ -145,6 +145,25 @@ class TestDeriveFromRaw:
         assert isinstance(ordinal["pe"], float)
         assert 0.0 <= ordinal["pe"] <= 1.0
 
+    def test_below_policy_threshold_pe_none(self, tmp_path: pytest.TempPathFactory) -> None:
+        """7 tokens is below policy threshold (8) — PE omitted even though structurally possible."""
+        from navi_sad.io.derived import derive_from_raw
+        from navi_sad.io.reader import DerivedRecordReader
+        from navi_sad.signal.ordinal import recommended_min_pe_length
+
+        raw_path = tmp_path / "raw_policy.jsonl.gz"
+        derived_path = tmp_path / "derived_policy.jsonl.gz"
+
+        threshold = recommended_min_pe_length(3, 1)  # 8
+        num_steps = threshold - 1  # 7: below policy, but PE structurally possible
+
+        self._write_raw(raw_path, [make_raw_record("policy-test", num_steps=num_steps)])
+        derive_from_raw(raw_path, derived_path)
+        derived = list(DerivedRecordReader(derived_path))
+        assert derived[0]["ordinal"]["pe"] is None, (
+            "PE should be omitted by policy even though structurally computable"
+        )
+
     def test_short_sequence_pe_none(self, tmp_path: pytest.TempPathFactory) -> None:
         """Derived from a raw record with only 5 steps -> ordinal.pe is None."""
         from navi_sad.io.derived import derive_from_raw
@@ -153,7 +172,7 @@ class TestDeriveFromRaw:
         raw_path = tmp_path / "raw_short.jsonl.gz"
         derived_path = tmp_path / "derived_short.jsonl.gz"
 
-        # 5 steps -> 5 per-token deltas, below MIN_PE_LENGTH=10
+        # 5 steps -> 5 per-token deltas, below policy threshold
         self._write_raw(raw_path, [make_raw_record("short-test", num_steps=5)])
 
         derive_from_raw(raw_path, derived_path)
