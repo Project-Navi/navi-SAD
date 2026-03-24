@@ -10,3 +10,6 @@ build/
 htmlcov/
 *.gz
 results/
+
+# Plans and specs are local working docs, never committed
+docs/plans/
