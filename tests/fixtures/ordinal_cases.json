@@ -1,0 +1,18 @@
+{
+    "monotone_increasing": {
+        "sequence": [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
+        "D": 3,
+        "note": "monotone should have low PE (one dominant pattern)"
+    },
+    "random_uniform": {
+        "sequence": [0.72, 0.31, 0.89, 0.15, 0.63, 0.47, 0.91, 0.28, 0.55, 0.76,
+                     0.42, 0.68, 0.19, 0.83, 0.37, 0.61, 0.94, 0.22, 0.51, 0.79],
+        "D": 3,
+        "note": "pseudo-random should have high PE (diverse patterns)"
+    },
+    "flat_with_noise": {
+        "sequence": [0.5, 0.500001, 0.499999, 0.5, 0.500002, 0.499998, 0.5, 0.500001, 0.5, 0.499999],
+        "D": 3,
+        "note": "near-flat should trigger tie detection with epsilon=1e-4"
+    }
+}
