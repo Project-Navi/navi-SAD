@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "navi-SAD"
 version = "0.1.0"
 description = "Spectral Attention Divergence — confabulation detection via dual-path attention comparison"
-license = "MIT"
+license = "Apache-2.0"
 requires-python = ">=3.10"
 dependencies = [
     "torch>=2.0.0",
