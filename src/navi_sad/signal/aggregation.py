@@ -28,9 +28,18 @@ def aggregate_deltas(
     for s in steps:
         by_step[s.step_idx].extend(s.per_head_delta)
 
-    max_step = max(by_step.keys()) if by_step else -1
-    result = []
-    for i in range(max_step + 1):
-        values = by_step.get(i, [])
-        result.append(sum(values) / len(values) if values else 0.0)
-    return result
+    if not by_step:
+        return []
+
+    max_step = max(by_step.keys())
+    expected = set(range(max_step + 1))
+    actual = set(by_step.keys())
+    missing = expected - actual
+    if missing:
+        raise ValueError(
+            f"non-contiguous step_idx: missing {sorted(missing)}. "
+            f"This indicates a step-accounting bug — every step_idx from 0 to "
+            f"{max_step} must be present."
+        )
+
+    return [sum(by_step[i]) / len(by_step[i]) for i in range(max_step + 1)]

@@ -107,21 +107,23 @@ class HookManager:
                 hidden_states = args[0]
                 B, L, _ = hidden_states.shape
                 head_dim = module.head_dim  # type: ignore[union-attr]
-                n_heads = module.num_heads  # type: ignore[union-attr]
 
+                # Use closure variables for head counts, not module.num_heads.
+                # For GQA models, K/V projections output num_kv_heads * head_dim,
+                # which is smaller than Q's num_q_heads * head_dim.
                 q = (
                     module.q_proj(hidden_states)  # type: ignore[union-attr]
-                    .view(B, L, n_heads, head_dim)
+                    .view(B, L, num_q_heads, head_dim)
                     .transpose(1, 2)
                 )
                 k = (
                     module.k_proj(hidden_states)  # type: ignore[union-attr]
-                    .view(B, L, n_heads, head_dim)
+                    .view(B, L, num_kv_heads, head_dim)
                     .transpose(1, 2)
                 )
                 v = (
                     module.v_proj(hidden_states)  # type: ignore[union-attr]
-                    .view(B, L, n_heads, head_dim)
+                    .view(B, L, num_kv_heads, head_dim)
                     .transpose(1, 2)
                 )
 

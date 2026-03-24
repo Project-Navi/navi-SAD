@@ -9,6 +9,7 @@ from navi_sad.signal.ordinal import (
     extract_ordinal_patterns,
     permutation_entropy,
     permutation_to_index,
+    recommended_min_pe_length,
 )
 
 # ---------------------------------------------------------------------------
@@ -146,3 +147,39 @@ class TestPermutationEntropy:
         pe, tie_rate, pattern_counts = permutation_entropy(seq, D=3, tau=1)
         patterns, _, _ = extract_ordinal_patterns(seq, D=3, tau=1)
         assert sum(pattern_counts.values()) == len(patterns)
+
+
+# ===========================================================================
+# TestRecommendedMinPeLength — policy threshold, not a theorem
+# ===========================================================================
+class TestRecommendedMinPeLength:
+    """The threshold is a configurable policy, not a mathematical requirement."""
+
+    def test_default_d3_tau1(self) -> None:
+        """D=3, tau=1, default min_windows=3!=6 -> 6 + 2 = 8."""
+        assert recommended_min_pe_length(3, 1) == 8
+
+    def test_custom_min_windows(self) -> None:
+        """Configurable min_windows overrides default D! policy."""
+        assert recommended_min_pe_length(3, 1, min_windows=10) == 12
+
+    def test_higher_tau(self) -> None:
+        """D=3, tau=2 -> (3-1)*2 + 6 = 10."""
+        assert recommended_min_pe_length(3, 2) == 10
+
+    def test_higher_d(self) -> None:
+        """D=4, tau=1 -> (4-1)*1 + 24 = 27."""
+        assert recommended_min_pe_length(4, 1) == 27
+
+    def test_pe_structurally_possible_below_threshold(self) -> None:
+        """PE is computable below the policy threshold — threshold is policy, not law.
+
+        4 elements with D=3, tau=1 gives 2 ordinal windows. That is enough
+        for PE to be defined (non-None), but below the policy threshold of 8.
+        """
+        seq = [0.1, 0.5, 0.3, 0.8]
+        pe, _, _ = permutation_entropy(seq, D=3, tau=1)
+        assert pe is not None, "PE should be structurally computable with 2 windows"
+        assert recommended_min_pe_length(3, 1) > len(seq), (
+            "Sequence is below policy threshold — that's the point"
+        )

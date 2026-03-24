@@ -11,11 +11,9 @@ from navi_sad.core.types import StepRecord
 from navi_sad.io.reader import RawRecordReader
 from navi_sad.signal.aggregation import aggregate_deltas
 from navi_sad.signal.derivatives import compute_derivatives
-from navi_sad.signal.ordinal import permutation_entropy
+from navi_sad.signal.ordinal import permutation_entropy, recommended_min_pe_length
 from navi_sad.signal.types import DerivedSampleRecord, OrdinalResult
 from navi_sad.version import __version__
-
-MIN_PE_LENGTH = 10  # minimum tokens for PE computation
 
 
 def derive_from_raw(
@@ -41,16 +39,17 @@ def derive_from_raw(
             per_token_delta = aggregate_deltas(steps, method=aggregation_method)
             derivs = compute_derivatives(per_token_delta)
 
-            if len(per_token_delta) >= MIN_PE_LENGTH:
+            D, tau = 3, 1
+            if len(per_token_delta) >= recommended_min_pe_length(D, tau):
                 pe, tie_rate, counts = permutation_entropy(
-                    per_token_delta, D=3, tau=1
+                    per_token_delta, D=D, tau=tau
                 )
                 ordinal = OrdinalResult(
-                    pe=pe, tie_rate=tie_rate, pattern_counts=counts, D=3, tau=1
+                    pe=pe, tie_rate=tie_rate, pattern_counts=counts, D=D, tau=tau
                 )
             else:
                 ordinal = OrdinalResult(
-                    pe=None, tie_rate=0.0, pattern_counts={}, D=3, tau=1
+                    pe=None, tie_rate=0.0, pattern_counts={}, D=D, tau=tau
                 )
 
             dp = derivs["delta_prime"]
