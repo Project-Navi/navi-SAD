@@ -81,7 +81,6 @@ def gate2_results(mistral_model_and_tokenizer, tmp_path_factory):  # type: ignor
 
     # Writer + run ID
     jsonl_path = tmp_path_factory.mktemp("gate2") / "raw.jsonl.gz"
-    writer = RawRecordWriter(jsonl_path)
     run_id = f"gate2_{uuid4().hex[:8]}"
 
     process = psutil.Process(os.getpid())
@@ -91,85 +90,86 @@ def gate2_results(mistral_model_and_tokenizer, tmp_path_factory):  # type: ignor
     written_sample_ids: list[str] = []
 
     try:
-        for i in range(NUM_WARMUP + NUM_MEASURED):
-            is_warmup = i < NUM_WARMUP
-            output = None
-            records = None
-            raw_record = None
+        with RawRecordWriter(jsonl_path) as writer:
+            for i in range(NUM_WARMUP + NUM_MEASURED):
+                is_warmup = i < NUM_WARMUP
+                output = None
+                records = None
+                raw_record = None
 
-            try:
-                torch.cuda.reset_peak_memory_stats()
+                try:
+                    torch.cuda.reset_peak_memory_stats()
 
-                # Generate
-                with torch.no_grad():
-                    output = model.generate(
-                        **inputs,
-                        max_new_tokens=MAX_NEW_TOKENS,
-                        min_new_tokens=MAX_NEW_TOKENS,
-                        do_sample=False,
-                        use_cache=False,
-                        logits_processor=LogitsProcessorList([step_callback]),
+                    # Generate
+                    with torch.no_grad():
+                        output = model.generate(
+                            **inputs,
+                            max_new_tokens=MAX_NEW_TOKENS,
+                            min_new_tokens=MAX_NEW_TOKENS,
+                            do_sample=False,
+                            use_cache=False,
+                            logits_processor=LogitsProcessorList([step_callback]),
+                        )
+
+                    # Assert actual generated token count
+                    generated_len = output.shape[1] - inputs["input_ids"].shape[1]
+                    assert generated_len == MAX_NEW_TOKENS, (
+                        f"Expected {MAX_NEW_TOKENS} generated tokens, got {generated_len}"
                     )
 
-                # Assert actual generated token count
-                generated_len = output.shape[1] - inputs["input_ids"].shape[1]
-                assert generated_len == MAX_NEW_TOKENS, (
-                    f"Expected {MAX_NEW_TOKENS} generated tokens, got {generated_len}"
-                )
+                    # Collect records
+                    records = mgr.get_records()
+                    sample_id = f"gate2_{i:03d}"
 
-                # Collect records
-                records = mgr.get_records()
-                sample_id = f"gate2_{i:03d}"
+                    # Only write measured samples -- spec says exactly 50 records
+                    if not is_warmup:
+                        raw_record = RawSampleRecord(
+                            sample_id=sample_id,
+                            model=MODEL_ID,
+                            benchmark="gate2_stability",
+                            prompt=PROBE_PROMPT,
+                            generation=tokenizer.decode(
+                                output[0][inputs["input_ids"].shape[1] :],
+                                skip_special_tokens=True,
+                            ),
+                            num_tokens_generated=MAX_NEW_TOKENS,
+                            layers_hooked=list(range(num_layers)),
+                            capture_tier="A",
+                            per_step=records,
+                            metadata={
+                                "run_id": run_id,
+                                "revision": REVISION,
+                            },
+                        )
+                        writer.write(raw_record)
+                        written_sample_ids.append(sample_id)
 
-                # Only write measured samples -- spec says exactly 50 records
+                    # Diagnostics (post-generation, pre-cleanup)
+                    torch.cuda.synchronize()
+                    diag_pre_cleanup.append(
+                        {
+                            "allocated": torch.cuda.memory_allocated(),
+                            "peak": torch.cuda.max_memory_allocated(),
+                            "reserved": torch.cuda.memory_reserved(),
+                        }
+                    )
+
+                finally:
+                    # Cleanup ALWAYS runs, even if generation/assertion fails
+                    del output, records, raw_record
+                    mgr.reset()
+                    gc.collect()
+                    torch.cuda.synchronize()
+                    torch.cuda.empty_cache()
+                    torch.cuda.synchronize()
+
+                # Gate metrics (post-cleanup)
                 if not is_warmup:
-                    raw_record = RawSampleRecord(
-                        sample_id=sample_id,
-                        model=MODEL_ID,
-                        benchmark="gate2_stability",
-                        prompt=PROBE_PROMPT,
-                        generation=tokenizer.decode(
-                            output[0][inputs["input_ids"].shape[1] :],
-                            skip_special_tokens=True,
-                        ),
-                        num_tokens_generated=MAX_NEW_TOKENS,
-                        layers_hooked=list(range(num_layers)),
-                        capture_tier="A",
-                        per_step=records,
-                        metadata={
-                            "run_id": run_id,
-                            "revision": REVISION,
-                        },
-                    )
-                    writer.write(raw_record)
-                    written_sample_ids.append(sample_id)
+                    vram_post_cleanup.append(torch.cuda.memory_allocated())
+                    rss_post_cleanup.append(process.memory_info().rss)
 
-                # Diagnostics (post-generation, pre-cleanup)
-                torch.cuda.synchronize()
-                diag_pre_cleanup.append(
-                    {
-                        "allocated": torch.cuda.memory_allocated(),
-                        "peak": torch.cuda.max_memory_allocated(),
-                        "reserved": torch.cuda.memory_reserved(),
-                    }
-                )
-
-            finally:
-                # Cleanup ALWAYS runs, even if generation/assertion fails
-                del output, records, raw_record
-                mgr.reset()
-                gc.collect()
-                torch.cuda.synchronize()
-                torch.cuda.empty_cache()
-                torch.cuda.synchronize()
-
-            # Gate metrics (post-cleanup)
-            if not is_warmup:
-                vram_post_cleanup.append(torch.cuda.memory_allocated())
-                rss_post_cleanup.append(process.memory_info().rss)
-
-        # Close writer BEFORE yielding -- provenance test reads the file
-        writer.close()
+        # Writer closed by context manager exiting here -- before yield,
+        # so provenance test can read the file during the test.
 
         yield {
             "vram_post_cleanup": vram_post_cleanup,
@@ -212,15 +212,25 @@ def test_no_vram_creep(gate2_results) -> None:  # type: ignore[no-untyped-def]
         f"CPU RSS grew {rss_growth} bytes > {CPU_RSS_TOLERANCE_BYTES}"
     )
 
-    # Diagnostic summary
+    # Diagnostic summary (reported, not gated)
+    diag = gate2_results["diag_pre_cleanup"]
+    # Skip warmup diagnostics (first NUM_WARMUP entries)
+    measured_diag = diag[NUM_WARMUP:]
+    max_peak = max(d["peak"] for d in measured_diag)
+    max_reserved = max(d["reserved"] for d in measured_diag)
+    max_pre_cleanup = max(d["allocated"] for d in measured_diag)
+
     print("\n=== Gate 2 Memory Summary ===")
-    print(f"  VRAM baseline: {baseline / 1024**2:.1f} MiB")
+    print(f"  VRAM baseline:       {baseline / 1024**2:.1f} MiB")
     print(
-        f"  VRAM spread:   {spread / 1024**2:.1f} MiB (limit: {VRAM_TOLERANCE_BYTES / 1024**2:.0f} MiB)"
+        f"  VRAM spread:         {spread / 1024**2:.1f} MiB (limit: {VRAM_TOLERANCE_BYTES / 1024**2:.0f} MiB)"
     )
     print(
-        f"  CPU RSS growth: {rss_growth / 1024**2:.1f} MiB (limit: {CPU_RSS_TOLERANCE_BYTES / 1024**2:.0f} MiB)"
+        f"  CPU RSS growth:      {rss_growth / 1024**2:.1f} MiB (limit: {CPU_RSS_TOLERANCE_BYTES / 1024**2:.0f} MiB)"
     )
+    print(f"  Pre-cleanup peak:    {max_peak / 1024**2:.1f} MiB")
+    print(f"  Pre-cleanup alloc:   {max_pre_cleanup / 1024**2:.1f} MiB")
+    print(f"  Max reserved:        {max_reserved / 1024**2:.1f} MiB")
 
 
 @pytest.mark.gpu
@@ -252,7 +262,7 @@ def test_provenance_round_trip(gate2_results) -> None:  # type: ignore[no-untype
         assert r["capture_tier"] == "A"
         assert r["benchmark"] == "gate2_stability"
         assert r["num_tokens_generated"] == MAX_NEW_TOKENS
-        assert len(r["layers_hooked"]) == num_layers
+        assert r["layers_hooked"] == list(range(num_layers))
         assert r["metadata"]["run_id"] == run_id
         assert r["metadata"]["revision"] == REVISION
 
