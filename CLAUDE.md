@@ -30,12 +30,18 @@ Milestone C complete. Gates 0, 1, 2 pass on Mistral-7B. 119 tests (107 CPU + 12 
 - `tests/gates/test_gate1_parity.py` -- Gate 1: frozen cosine + relative L2 thresholds, layer drift invariant
 - `tests/gates/test_gate2_stability.py` -- Gate 2: 50 generations, VRAM stability, provenance round-trip
 
+### Gate 3 pilot harness (this branch)
+- `src/navi_sad/pilot/helpers.py` -- extraction, shadow scorer, scalar computation, alignment, integrity validation, guarded Cohen's d
+- `scripts/pilot_gate3.py` -- generation (40-sample TruthfulQA) + `--analyze` entry points
+- Shadow scorer `truthfulqa_exact_v1` (pilot-quality, not production)
+- Pending: 5-sample smoke run, then 40-sample pilot run + manual review
+
 ### What does NOT exist yet
 
-**Milestone D (next):**
-- Gate 3: Head sparsity analysis on TruthfulQA (200 samples, per-head Cohen's d)
-- TruthfulQA benchmark runner + scorer
-- Analysis module (AUROC, Cohen's d, bootstrap CIs)
+**Milestone D (remaining after pilot):**
+- Full Gate 3: Head sparsity analysis on TruthfulQA (200 samples, train/val split, per-head Cohen's d with frozen thresholds)
+- Production TruthfulQA scorer (token-based extraction per SPEC.md section 5.6)
+- Analysis module (AUROC, bootstrap CIs)
 - Gate 6: Overhead measurement (informational, not blocking)
 
 ## Plans (local only, gitignored)

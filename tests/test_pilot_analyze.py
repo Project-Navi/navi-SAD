@@ -177,6 +177,41 @@ class TestValidateReviewIntegrity:
         # Should not raise
         validate_review_integrity(reviews, samples)
 
+    def test_stale_disagreement_category_rejected(self) -> None:
+        """Stale disagreement_category when labels agree must fail."""
+        samples = [_make_sample(0, scorer_label="correct")]
+        reviews = [
+            _make_review(
+                0,
+                human_label="correct",
+                scorer_label="correct",
+                disagreement_category="hedging",
+            )
+        ]
+        with pytest.raises(ValueError, match="disagreement_category"):
+            validate_review_integrity(reviews, samples)
+
+    def test_stale_disagreement_note_rejected(self) -> None:
+        """Stale disagreement_note when labels agree must fail."""
+        samples = [_make_sample(0, scorer_label="correct")]
+        reviews = [
+            _make_review(
+                0,
+                human_label="correct",
+                scorer_label="correct",
+                disagreement_note="leftover note",
+            )
+        ]
+        with pytest.raises(ValueError, match="disagreement_note"):
+            validate_review_integrity(reviews, samples)
+
+    def test_invalid_scorer_label_rejected(self) -> None:
+        """Invalid scorer_label in the artifact must fail."""
+        samples = [_make_sample(0, scorer_label="maybe")]
+        reviews = [_make_review(0, human_label="correct", scorer_label="maybe")]
+        with pytest.raises(ValueError, match="scorer_label"):
+            validate_review_integrity(reviews, samples)
+
     def test_readonly_field_drift(self) -> None:
         """Changing a read-only field should fail."""
         samples = [_make_sample(0, generation_text="Paris")]

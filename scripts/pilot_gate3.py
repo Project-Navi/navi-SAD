@@ -444,7 +444,9 @@ def run_analysis(args: argparse.Namespace) -> None:
     # Failure mode categorization
     print()
     disagreements = [
-        r["disagreement_category"] for r in review_data if r.get("disagreement_category")
+        r["disagreement_category"]
+        for r in review_data
+        if r["human_label"] != r["scorer_label"] and r.get("disagreement_category")
     ]
     if disagreements:
         print("Disagreement categories:")
@@ -511,62 +513,95 @@ def run_analysis(args: argparse.Namespace) -> None:
         f"{len(incorrect_leading)} incorrect"
     )
 
-    _print_cohens_d_summary("Full-gen", correct_full, incorrect_full, "full_gen_mean_delta")
-    _print_cohens_d_summary(
-        "Leading-span", correct_leading, incorrect_leading, "leading_span_mean_delta"
+    full_gen_d = _compute_cohens_d_matrix(correct_full, incorrect_full, "full_gen_mean_delta")
+    leading_span_d = _compute_cohens_d_matrix(
+        correct_leading, incorrect_leading, "leading_span_mean_delta"
     )
+
+    _print_cohens_d_summary("Full-gen", full_gen_d)
+    _print_cohens_d_summary("Leading-span (non-fallback)", leading_span_d)
+
+    # Write full d matrices to sidecar file
+    d_sidecar = {
+        "full_gen_cohens_d": full_gen_d,
+        "leading_span_cohens_d": leading_span_d,
+        "n_correct_full": len(correct_full),
+        "n_incorrect_full": len(incorrect_full),
+        "n_correct_leading": len(correct_leading),
+        "n_incorrect_leading": len(incorrect_leading),
+    }
+    d_path = review_path.parent / "cohens_d.json"
+    with open(d_path, "w", encoding="utf-8") as f:
+        json.dump(d_sidecar, f, indent=2)
+    print(f"\nFull d matrices written to {d_path}")
     print()
 
 
-def _print_cohens_d_summary(
-    label: str,
+def _compute_cohens_d_matrix(
     correct_samples: list[dict[str, Any]],
     incorrect_samples: list[dict[str, Any]],
     matrix_key: str,
-) -> None:
-    """Print Cohen's d summary for a set of samples."""
+) -> list[list[float | None]] | None:
+    """Compute per-(layer, head) Cohen's d matrix. Returns None if insufficient data."""
     if not correct_samples or not incorrect_samples:
-        print(f"\n{label} Cohen's d: insufficient data")
-        return
+        return None
 
     num_layers = len(correct_samples[0][matrix_key])
     num_heads = len(correct_samples[0][matrix_key][0])
-    d_gt_05 = 0
-    d_gt_03 = 0
-    d_valid = 0
-    d_total = num_layers * num_heads
+    d_matrix: list[list[float | None]] = []
 
-    # Per-layer summary preserving (layer, head) structure
-    layer_summaries: list[str] = []
     for layer in range(num_layers):
-        layer_d_values: list[str] = []
+        row: list[float | None] = []
         for head in range(num_heads):
             c_vals = [s[matrix_key][layer][head] for s in correct_samples]
             i_vals = [s[matrix_key][layer][head] for s in incorrect_samples]
             d_val, _ = compute_cohens_d(c_vals, i_vals)
+            row.append(d_val)
+        d_matrix.append(row)
+
+    return d_matrix
+
+
+def _print_cohens_d_summary(
+    label: str,
+    d_matrix: list[list[float | None]] | None,
+) -> None:
+    """Print Cohen's d summary from a precomputed matrix."""
+    if d_matrix is None:
+        print(f"\n{label} Cohen's d: insufficient data")
+        return
+
+    d_gt_05 = 0
+    d_gt_03 = 0
+    d_valid = 0
+    d_total = sum(len(row) for row in d_matrix)
+
+    layer_summaries: list[str] = []
+    for layer_idx, row in enumerate(d_matrix):
+        layer_d_strs: list[str] = []
+        for d_val in row:
             if d_val is not None:
                 d_valid += 1
                 if abs(d_val) > 0.5:
                     d_gt_05 += 1
                 if abs(d_val) > 0.3:
                     d_gt_03 += 1
-                layer_d_values.append(f"{d_val:+.3f}")
+                layer_d_strs.append(f"{d_val:+.3f}")
             else:
-                layer_d_values.append("null")
-        layer_summaries.append(f"  L{layer:02d}: [{', '.join(layer_d_values)}]")
+                layer_d_strs.append("null")
+        layer_summaries.append(f"  L{layer_idx:02d}: [{', '.join(layer_d_strs)}]")
 
-    suffix = " (non-fallback only)" if "leading" in label.lower() else ""
-    print(f"\n{label} Cohen's d ({d_valid}/{d_total} valid{suffix}):")
+    print(f"\n{label} Cohen's d ({d_valid}/{d_total} valid):")
     print(f"  |d| > 0.5: {d_gt_05}")
     print(f"  |d| > 0.3: {d_gt_03}")
-    # Print per-layer breakdown (first 5 + last 5 if many layers)
+    # Truncate stdout for readability, full matrix in sidecar file
     if len(layer_summaries) <= 12:
         for line in layer_summaries:
             print(line)
     else:
         for line in layer_summaries[:5]:
             print(line)
-        print(f"  ... ({len(layer_summaries) - 10} layers omitted)")
+        print(f"  ... ({len(layer_summaries) - 10} layers omitted, see cohens_d.json)")
         for line in layer_summaries[-5:]:
             print(line)
 

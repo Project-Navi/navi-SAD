@@ -287,10 +287,17 @@ def validate_review_integrity(
                 f"Sample {idx}: invalid human_label '{hl}'. Must be one of: {sorted(VALID_LABELS)}"
             )
 
-        # Disagreement category validation
+        # Scorer label validation
         sl = r.get("scorer_label", "")
+        if sl not in VALID_LABELS:
+            raise ValueError(
+                f"Sample {idx}: invalid scorer_label '{sl}'. Must be one of: {sorted(VALID_LABELS)}"
+            )
+
+        # Disagreement category validation
+        dc = r.get("disagreement_category", "")
+        dn = r.get("disagreement_note", "")
         if hl != sl:
-            dc = r.get("disagreement_category", "")
             if not dc:
                 raise ValueError(
                     f"Sample {idx}: human_label '{hl}' != scorer_label '{sl}' "
@@ -300,6 +307,18 @@ def validate_review_integrity(
                 raise ValueError(
                     f"Sample {idx}: invalid disagreement_category '{dc}'. "
                     f"Must be one of: {sorted(DISAGREEMENT_CATEGORIES)}"
+                )
+        else:
+            # Labels agree — no stale disagreement fields allowed
+            if dc:
+                raise ValueError(
+                    f"Sample {idx}: human_label == scorer_label ('{hl}') "
+                    f"but disagreement_category is '{dc}' (must be blank)"
+                )
+            if dn:
+                raise ValueError(
+                    f"Sample {idx}: human_label == scorer_label ('{hl}') "
+                    f"but disagreement_note is not blank (must be blank)"
                 )
 
         # Read-only field drift
