@@ -145,7 +145,9 @@ def main() -> None:
 
         print(f"  Records: {len(records)}")
         print(f"  Cosine sim:  min={min(cos_sims):.8f}  mean={sum(cos_sims) / len(cos_sims):.8f}")
-        print(f"  Rel L2 err:  max={max(l2_errors):.8f}  mean={sum(l2_errors) / len(l2_errors):.8f}")
+        print(
+            f"  Rel L2 err:  max={max(l2_errors):.8f}  mean={sum(l2_errors) / len(l2_errors):.8f}"
+        )
         print(f"  Max abs err: max={max(max_abs):.8f}  mean={sum(max_abs) / len(max_abs):.8f}")
 
         pre_cos = [r.pre_oproj_cosine for r in records if r.pre_oproj_cosine is not None]
@@ -195,7 +197,7 @@ def main() -> None:
     recommended_cosine = 1.0 - recommended_cosine_delta
     recommended_l2 = max(all_l2) * 1.5
     print(f"  Worst cosine delta (1 - cos): {worst_cos_delta:.2e}")
-    print(f"  Headroom factor: 3x")
+    print("  Headroom factor: 3x")
     print(f"  COSINE_MIN = {recommended_cosine}")
     print(f"  RELATIVE_L2_MAX = {recommended_l2}")
     print()
