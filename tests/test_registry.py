@@ -4,7 +4,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from navi_sad.core.registry import MODEL_REGISTRY, get_family_config
+from navi_sad.core.registry import get_family_config
 from navi_sad.core.types import ModelFamilyConfig
 
 

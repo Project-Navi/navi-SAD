@@ -32,16 +32,29 @@ dev = [
 ]
 
 # To install all optional groups:
-#   pip install -e ".[eval,analysis,dev]"
+#   uv sync --extra eval --extra analysis --extra dev
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [tool.ruff]
 line-length = 100
+target-version = "py310"
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "W"]
+select = [
+    "E",      # pycodestyle errors
+    "F",      # pyflakes
+    "I",      # isort
+    "W",      # pycodestyle warnings
+    "B",      # flake8-bugbear — mutable defaults, assert False
+    "UP",     # pyupgrade — modernize to 3.10+ syntax
+    "RUF",    # ruff-specific rules
+    "C4",     # flake8-comprehensions
+]
+ignore = [
+    "E501",   # line length handled by formatter
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -51,6 +64,23 @@ markers = [
 addopts = "-v --tb=short"
 
 [tool.mypy]
+files = ["src"]
 python_version = "3.10"
+check_untyped_defs = true
+disallow_untyped_defs = false
 warn_return_any = true
 warn_unused_configs = true
+warn_redundant_casts = true
+show_error_codes = true
+enable_error_code = ["ignore-without-code", "redundant-expr", "truthy-bool"]
+allow_redefinition = true
+
+[[tool.mypy.overrides]]
+module = [
+    "torch.*",
+    "transformers.*",
+    "datasets.*",
+    "scipy.*",
+    "sklearn.*",
+]
+ignore_missing_imports = true

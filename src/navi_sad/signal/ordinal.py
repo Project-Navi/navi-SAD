@@ -91,7 +91,7 @@ def permutation_to_index(perm: list[int], D: int) -> int:
                 count += 1
         index += count * factorial
         if D - 1 - i > 0:
-            factorial //= (D - 1 - i)
+            factorial //= D - 1 - i
 
     return index
 
@@ -211,7 +211,7 @@ def permutation_entropy(
         *tie_rate* is the fraction of windows excluded, and
         *pattern_counts* maps each Lehmer index to its occurrence count.
     """
-    patterns, tied_count, tie_rate = extract_ordinal_patterns(
+    patterns, _tied_count, tie_rate = extract_ordinal_patterns(
         sequence, D=D, tau=tau, epsilon=epsilon
     )
 

@@ -38,8 +38,7 @@ def get_family_config(model_config) -> ModelFamilyConfig:
     if not hasattr(model_config, "architectures"):
         available = [a for a in dir(model_config) if not a.startswith("_")]
         raise ValueError(
-            f"Model config has no 'architectures' attribute. "
-            f"Available attributes: {available}"
+            f"Model config has no 'architectures' attribute. Available attributes: {available}"
         )
 
     archs = model_config.architectures
@@ -48,15 +47,10 @@ def get_family_config(model_config) -> ModelFamilyConfig:
 
     arch = archs[0]
     if len(archs) > 1:
-        logger.warning(
-            "Multiple architectures listed: %s. Using first: %s", archs, arch
-        )
+        logger.warning("Multiple architectures listed: %s. Using first: %s", archs, arch)
 
     if arch not in MODEL_REGISTRY:
         supported = list(MODEL_REGISTRY.keys())
-        raise ValueError(
-            f"Architecture '{arch}' is not registered. "
-            f"Supported: {supported}"
-        )
+        raise ValueError(f"Architecture '{arch}' is not registered. Supported: {supported}")
 
     return MODEL_REGISTRY[arch]

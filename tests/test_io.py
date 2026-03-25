@@ -1,6 +1,5 @@
 """Tests for raw/derived JSONL I/O with gzip compression."""
 
-import math
 import random
 
 import pytest
@@ -31,9 +30,7 @@ def make_raw_record(
                 StepRecord(
                     step_idx=step_idx,
                     layer_idx=layer_idx,
-                    per_head_delta=[
-                        round(rng.uniform(0.3, 0.9), 6) for _ in range(4)
-                    ],
+                    per_head_delta=[round(rng.uniform(0.3, 0.9), 6) for _ in range(4)],
                 )
             )
     return RawSampleRecord(

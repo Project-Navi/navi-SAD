@@ -98,6 +98,7 @@ class HookManager:
             num_q_heads: Number of query attention heads.
             num_kv_heads: Number of key/value attention heads (for GQA).
         """
+
         # --- Pre-hook: capture Q/K/V from module projections ---
         # MOCK ONLY: Real adapters intercept post-RoPE tensors directly.
         # This recomputation approach is valid only for testing and for
@@ -112,22 +113,22 @@ class HookManager:
                 # For GQA models, K/V projections output num_kv_heads * head_dim,
                 # which is smaller than Q's num_q_heads * head_dim.
                 q = (
-                    module.q_proj(hidden_states)  # type: ignore[union-attr]
+                    module.q_proj(hidden_states)  # type: ignore[operator, union-attr]
                     .view(B, L, num_q_heads, head_dim)
                     .transpose(1, 2)
                 )
                 k = (
-                    module.k_proj(hidden_states)  # type: ignore[union-attr]
+                    module.k_proj(hidden_states)  # type: ignore[operator, union-attr]
                     .view(B, L, num_kv_heads, head_dim)
                     .transpose(1, 2)
                 )
                 v = (
-                    module.v_proj(hidden_states)  # type: ignore[union-attr]
+                    module.v_proj(hidden_states)  # type: ignore[operator, union-attr]
                     .view(B, L, num_kv_heads, head_dim)
                     .transpose(1, 2)
                 )
 
-                module._sad_capture = (q, k, v)  # type: ignore[union-attr]
+                module._sad_capture = (q, k, v)  # type: ignore[assignment, union-attr]
 
         # --- Post-hook: compute SAD delta from captured tensors ---
         def post_hook(module: nn.Module, args: tuple, output: torch.Tensor) -> None:
@@ -150,9 +151,7 @@ class HookManager:
             # Take newest-token Q slice: [B, H, 1, D]
             q_last = q[:, :, -1:, :]
 
-            delta = compute_sad_delta(
-                q_last, k, v, sink_exclude=self._sink_exclude
-            )
+            delta = compute_sad_delta(q_last, k, v, sink_exclude=self._sink_exclude)
 
             self._records.append(
                 StepRecord(
