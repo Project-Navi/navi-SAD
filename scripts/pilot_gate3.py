@@ -418,6 +418,14 @@ def run_analysis(args: argparse.Namespace) -> None:
     # Build lookup
     samples_by_idx = {s["dataset_index"]: s for s in samples_data}
 
+    # Filter out invalid samples consistently across all sections
+    invalid_count = sum(1 for s in samples_data if s.get("sample_error") is not None)
+    if invalid_count > 0:
+        print(f"WARNING: {invalid_count} invalid sample(s) with instrument errors.")
+        print("Invalid samples are excluded from ALL analysis sections.\n")
+        valid_indices = {s["dataset_index"] for s in samples_data if s.get("sample_error") is None}
+        review_data = [r for r in review_data if r["dataset_index"] in valid_indices]
+
     # Collect labels
     human_labels = [r["human_label"] for r in review_data]
     scorer_labels = [r["scorer_label"] for r in review_data]
@@ -539,8 +547,6 @@ def run_analysis(args: argparse.Namespace) -> None:
     for r in review_data:
         s = samples_by_idx[r["dataset_index"]]
         hl = r["human_label"]
-        if s.get("sample_error") is not None:
-            continue  # skip invalid samples
         if hl == "correct":
             if s.get("full_gen_mean_delta") is not None:
                 correct_full.append(s)
@@ -704,12 +710,12 @@ def _print_position_stratified_sad(
 ) -> None:
     """Print SAD delta by generation position, grouped by human label.
 
-    Shows mean delta (averaged across all layers and heads) at each
-    step_idx position, for correct and incorrect groups separately.
-    This reveals whether SAD has a structural position trend
-    (e.g., from linear attention denominator growth).
+    Aggregates per-sample first: for each sample at a given step_idx,
+    average across all layer records to get one value per sample per
+    step. Then report sample counts (not layer-record counts).
     """
-    # Collect per-step mean deltas by label group
+    # Aggregate per-sample per-step: for each sample, average across
+    # all layer records at the same step_idx to get one value.
     correct_by_step: dict[int, list[float]] = {}
     incorrect_by_step: dict[int, list[float]] = {}
 
@@ -719,11 +725,17 @@ def _print_position_stratified_sad(
     ]:
         for s in group:
             per_step = s.get("per_step", [])
+            # Group records by step_idx within this sample
+            step_layer_deltas: dict[int, list[float]] = {}
             for rec in per_step:
                 step = rec["step_idx"]
                 deltas = rec["per_head_delta"]
-                mean_delta = sum(deltas) / len(deltas) if deltas else 0.0
-                step_dict.setdefault(step, []).append(mean_delta)
+                mean_across_heads = sum(deltas) / len(deltas) if deltas else 0.0
+                step_layer_deltas.setdefault(step, []).append(mean_across_heads)
+            # Average across layers for each step -> one value per sample per step
+            for step, layer_means in step_layer_deltas.items():
+                sample_mean = sum(layer_means) / len(layer_means)
+                step_dict.setdefault(step, []).append(sample_mean)
 
     if not correct_by_step and not incorrect_by_step:
         print("No per-step data available for position analysis.")
@@ -742,20 +754,17 @@ def _print_position_stratified_sad(
         last = all_steps[-1]
         positions.append((f"late (step {last})", last))
 
-    header = "position".ljust(22) + "correct (mean, n)".ljust(24) + "incorrect (mean, n)"
+    header = (
+        "position".ljust(22) + "correct (mean, n_samples)".ljust(28) + "incorrect (mean, n_samples)"
+    )
     print(header)
     print("-" * len(header))
-    for label, step in positions:
+    for pos_label, step in positions:
         c_vals = correct_by_step.get(step, [])
         i_vals = incorrect_by_step.get(step, [])
         c_str = f"{sum(c_vals) / len(c_vals):.4f}, n={len(c_vals)}" if c_vals else "n/a"
         i_str = f"{sum(i_vals) / len(i_vals):.4f}, n={len(i_vals)}" if i_vals else "n/a"
-        print(f"  {label.ljust(20)}{c_str.ljust(24)}{i_str}")
-
-    # Note on per-step record structure
-    # Each step has num_layers records. The mean_delta above averages
-    # across all layers and all heads for that step — this is a pooled
-    # position signal, not per-layer.
+        print(f"  {pos_label.ljust(20)}{c_str.ljust(28)}{i_str}")
 
 
 # -------------------------------------------------------------------

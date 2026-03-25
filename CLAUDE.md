@@ -8,7 +8,7 @@ Spectral Attention Divergence (SAD): a confabulation detection method. Runs soft
 
 ## Current State (2026-03-25)
 
-Milestone C complete. Gates 0, 1, 2 pass on Mistral-7B. 119 tests (107 CPU + 12 GPU).
+Milestone C complete. Gates 0, 1, 2 pass on Mistral-7B. Gate 3 pilot harness built, pending smoke run. 195 tests (183 CPU + 12 GPU).
 
 ### What exists and works
 - `core/spectral.py` -- softmax + linear attention (newest-token), GQA expansion, cosine distance
@@ -53,8 +53,8 @@ Milestone C complete. Gates 0, 1, 2 pass on Mistral-7B. 119 tests (107 CPU + 12 
 - `docs/plans/PHASE_C4_PLAN.md` -- Phase C4 implementation plan. Complete.
 - `docs/plans/GATE2_SPEC.md` -- Gate 2 design spec. Stability + serialization. Complete.
 - `docs/plans/GATE2_PLAN.md` -- Gate 2 implementation plan. Complete.
-- `docs/plans/GATE3_PILOT_PLAN.md` -- Gate 3 pilot implementation plan. Pending implementation.
-- `docs/plans/GATE3_PILOT_SPEC.md` -- Gate 3 pilot design spec. Approved, pending implementation.
+- `docs/plans/GATE3_PILOT_PLAN.md` -- Gate 3 pilot implementation plan. Implemented (PR #15).
+- `docs/plans/GATE3_PILOT_SPEC.md` -- Gate 3 pilot design spec. Approved (post-audit revision, 2 rounds Grumpy + 2 rounds IA). Implemented.
 - `docs/plans/CI_CD_PROPOSAL.md` -- CI/CD research and proposal. Implemented.
 
 **Read SPEC.md before touching anything.** It contains critical contracts:
