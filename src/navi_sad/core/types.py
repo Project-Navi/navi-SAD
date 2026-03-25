@@ -67,3 +67,33 @@ class ModelFamilyConfig:
     gqa_expansion: bool
     notes: str = ""
     adapter_factory: Callable[[], MistralAdapter] | None = None
+
+
+@dataclass
+class ParityConfig:
+    """Configuration for Gate 1 parity validation mode."""
+
+    enabled: bool = True
+    include_pre_oproj: bool = True
+
+
+@dataclass
+class ParityRecord:
+    """Per-layer parity check result for Gate 1.
+
+    Gate metrics (cosine_similarity, relative_l2_error) have frozen
+    thresholds applied. Diagnostics (max_absolute_error, pre_oproj_cosine)
+    are reported but not gated.
+
+    pre_oproj_cosine is None when ParityConfig.include_pre_oproj is False,
+    not when computation failed.
+    """
+
+    layer_idx: int
+    step_idx: int
+    # Gate metrics
+    cosine_similarity: float
+    relative_l2_error: float
+    # Diagnostics
+    max_absolute_error: float
+    pre_oproj_cosine: float | None
