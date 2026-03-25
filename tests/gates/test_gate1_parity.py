@@ -157,7 +157,7 @@ class TestGate1Parity:
             )
 
     def test_no_systematic_layer_drift(self, mistral_model_and_tokenizer) -> None:  # type: ignore[no-untyped-def]
-        """No early/mid/late slice should fall below the frozen global cosine minimum."""
+        """No early/mid/late layer's mean cosine should fall below the frozen global minimum."""
         model, tokenizer = mistral_model_and_tokenizer
         num_layers = model.config.num_hidden_layers
 
