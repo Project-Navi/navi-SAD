@@ -30,7 +30,7 @@ class TestGate0NonInterference:
 
     def _install_instrument(self, model) -> InstrumentManager:  # type: ignore[no-untyped-def]
         family = get_family_config(model.config)
-        mgr = InstrumentManager(sink_exclude=1)
+        mgr = InstrumentManager(family, sink_exclude=1)
         num_q = getattr(model.config, family.num_q_heads_attr)
         num_kv = getattr(model.config, family.num_kv_heads_attr)
 
@@ -136,6 +136,25 @@ class TestGate0NonInterference:
             f"Step accounting broken: expected {expected} records "
             f"({num_layers} layers x {max_new} tokens), got {len(records)}"
         )
+
+        # Per-step/per-layer bijection: each step_idx must have exactly
+        # num_layers records with the full set of layer indices exactly once.
+        # Total count alone can hide duplicated/missing layers.
+        expected_layers = set(range(num_layers))
+        by_step: dict[int, list[int]] = {}
+        for r in records:
+            by_step.setdefault(r.step_idx, []).append(r.layer_idx)
+
+        assert set(by_step.keys()) == set(range(max_new)), (
+            f"Expected step_idx 0..{max_new - 1}, got {sorted(by_step.keys())}"
+        )
+        for step_idx, layer_indices in by_step.items():
+            assert set(layer_indices) == expected_layers, (
+                f"Step {step_idx}: expected layers {expected_layers}, got {set(layer_indices)}"
+            )
+            assert len(layer_indices) == num_layers, (
+                f"Step {step_idx}: duplicate layers detected: {layer_indices}"
+            )
 
         num_q = model.config.num_attention_heads
         for r in records:

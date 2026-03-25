@@ -10,14 +10,17 @@ Parity mode (Gate 1) is added in Phase C4.
 from __future__ import annotations
 
 import logging
+from typing import TYPE_CHECKING
 
 import torch
 import torch.nn as nn
 
-from navi_sad.core.adapter import MistralAdapter
 from navi_sad.core.hooks import compute_sad_delta
 from navi_sad.core.spectral import expand_kv_heads
-from navi_sad.core.types import StepRecord
+from navi_sad.core.types import ModelFamilyConfig, StepRecord
+
+if TYPE_CHECKING:
+    from navi_sad.core.adapter import MistralAdapter
 
 logger = logging.getLogger(__name__)
 
@@ -39,11 +42,16 @@ class InstrumentManager:
         mgr.reset()             # between samples
     """
 
-    def __init__(self, sink_exclude: int = 1) -> None:
+    def __init__(self, family_config: ModelFamilyConfig, sink_exclude: int = 1) -> None:
+        if family_config.adapter_factory is None:
+            raise ValueError(
+                f"Family config for '{family_config.architecture}' has no adapter_factory. "
+                f"Cannot instrument without an adapter."
+            )
         self._sink_exclude = sink_exclude
         self._step_idx: int = 0
         self._records: list[StepRecord] = []
-        self._adapter = MistralAdapter()
+        self._adapter: MistralAdapter = family_config.adapter_factory()
         self._installed_modules: list[nn.Module] = []
 
     def install_layer(

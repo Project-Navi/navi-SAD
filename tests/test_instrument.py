@@ -9,9 +9,23 @@ from transformers.models.mistral.modeling_mistral import (
     MistralRotaryEmbedding,
 )
 
+from navi_sad.core.adapter import MistralAdapter
 from navi_sad.core.instrument import InstrumentManager
+from navi_sad.core.types import ModelFamilyConfig
 
 _CPU = torch.device("cpu")
+
+# Minimal family config for CPU tests — only adapter_factory matters here.
+_TEST_FAMILY = ModelFamilyConfig(
+    architecture="MistralForCausalLM",
+    attn_module_path="model.layers.{}.self_attn",
+    capture_tier="A",
+    num_kv_heads_attr="num_key_value_heads",
+    num_q_heads_attr="num_attention_heads",
+    head_dim_attr="head_dim",
+    gqa_expansion=True,
+    adapter_factory=MistralAdapter,
+)
 
 
 def _make_small_attn(
@@ -48,7 +62,7 @@ def _make_position_embeddings(
 class TestInstrumentManager:
     def test_single_layer_produces_records(self) -> None:
         attn, config = _make_small_attn()
-        mgr = InstrumentManager(sink_exclude=1)
+        mgr = InstrumentManager(_TEST_FAMILY, sink_exclude=1)
         mgr.install_layer(attn, layer_idx=0, num_q_heads=4, num_kv_heads=2)
 
         hidden_states = torch.randn(1, 8, 64)
@@ -66,7 +80,7 @@ class TestInstrumentManager:
 
     def test_multi_step_increments_correctly(self) -> None:
         attn, config = _make_small_attn()
-        mgr = InstrumentManager(sink_exclude=0)
+        mgr = InstrumentManager(_TEST_FAMILY, sink_exclude=0)
         mgr.install_layer(attn, layer_idx=0, num_q_heads=4, num_kv_heads=2)
 
         for step in range(3):
@@ -83,7 +97,7 @@ class TestInstrumentManager:
 
     def test_reset_clears_state(self) -> None:
         attn, config = _make_small_attn()
-        mgr = InstrumentManager()
+        mgr = InstrumentManager(_TEST_FAMILY)
         mgr.install_layer(attn, layer_idx=0, num_q_heads=4, num_kv_heads=2)
 
         hidden_states = torch.randn(1, 8, 64)
@@ -98,7 +112,7 @@ class TestInstrumentManager:
 
     def test_uninstall_stops_capture(self) -> None:
         attn, config = _make_small_attn()
-        mgr = InstrumentManager()
+        mgr = InstrumentManager(_TEST_FAMILY)
         mgr.install_layer(attn, layer_idx=0, num_q_heads=4, num_kv_heads=2)
         mgr.uninstall()
 
@@ -111,7 +125,7 @@ class TestInstrumentManager:
 
     def test_per_head_delta_in_valid_range(self) -> None:
         attn, config = _make_small_attn()
-        mgr = InstrumentManager(sink_exclude=0)
+        mgr = InstrumentManager(_TEST_FAMILY, sink_exclude=0)
         mgr.install_layer(attn, layer_idx=0, num_q_heads=4, num_kv_heads=2)
 
         hidden_states = torch.randn(1, 10, 64)
@@ -134,7 +148,7 @@ class TestInstrumentManager:
         with torch.no_grad():
             out_clean, _ = attn(hidden_states, pos_emb, None)
 
-        mgr = InstrumentManager()
+        mgr = InstrumentManager(_TEST_FAMILY)
         mgr.install_layer(attn, layer_idx=0, num_q_heads=4, num_kv_heads=2)
 
         with torch.no_grad():
@@ -146,7 +160,7 @@ class TestInstrumentManager:
         """make_step_callback returns a LogitsProcessorList-compatible object."""
         from transformers import LogitsProcessorList
 
-        mgr = InstrumentManager()
+        mgr = InstrumentManager(_TEST_FAMILY)
         callback = mgr.make_step_callback()
 
         processor_list = LogitsProcessorList([callback])

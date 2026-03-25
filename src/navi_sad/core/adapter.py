@@ -23,25 +23,23 @@ logger = logging.getLogger(__name__)
 
 # Compatible transformers version range for this adapter.
 # The patched forward is copied from this exact version range.
-_COMPAT_MIN = (4, 57, 0)
-_COMPAT_MAX = (4, 58, 0)  # exclusive
+_COMPAT_MIN = "4.57.0"
+_COMPAT_MAX = "4.58.0"  # exclusive
 
 
 def _check_transformers_version() -> None:
     """Raise if transformers version is outside compatible range."""
     import transformers
+    from packaging.version import InvalidVersion, Version
 
     version_str = transformers.__version__
-    parts = version_str.split(".")
     try:
-        version_tuple = tuple(int(p) for p in parts[:3])
-    except ValueError as exc:
+        version = Version(version_str)
+    except InvalidVersion as exc:
         raise RuntimeError(f"Cannot parse transformers version: {version_str}") from exc
-    if not (_COMPAT_MIN <= version_tuple < _COMPAT_MAX):
+    if not (Version(_COMPAT_MIN) <= version < Version(_COMPAT_MAX)):
         raise RuntimeError(
-            f"MistralAdapter requires transformers "
-            f"{'.'.join(str(x) for x in _COMPAT_MIN)} "
-            f"to <{'.'.join(str(x) for x in _COMPAT_MAX)}, "
+            f"MistralAdapter requires transformers >={_COMPAT_MIN}, <{_COMPAT_MAX}, "
             f"got {version_str}. The patched forward is copied from "
             f"this version range and may not be compatible."
         )
