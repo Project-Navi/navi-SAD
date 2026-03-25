@@ -55,6 +55,42 @@ class TestExtractHeadSadSeries:
         result = extract_head_sad_series(per_step, num_layers=1, num_heads=1)
         assert result[(0, 0)] == [0.1, 0.5, 0.9]
 
+    def test_duplicate_layer_step_raises(self) -> None:
+        """Duplicate (layer_idx, step_idx) records must raise, not overwrite."""
+        per_step = [
+            {"step_idx": 0, "layer_idx": 0, "per_head_delta": [0.1]},
+            {"step_idx": 0, "layer_idx": 0, "per_head_delta": [0.9]},  # duplicate
+        ]
+        with pytest.raises(ValueError, match="duplicate"):
+            extract_head_sad_series(per_step, num_layers=1, num_heads=1)
+
+    def test_non_contiguous_steps_raises(self) -> None:
+        """Missing step_idx within a layer must raise, not compress gaps."""
+        per_step = [
+            {"step_idx": 0, "layer_idx": 0, "per_head_delta": [0.1]},
+            # step_idx 1 missing
+            {"step_idx": 2, "layer_idx": 0, "per_head_delta": [0.9]},
+        ]
+        with pytest.raises(ValueError, match="non-contiguous"):
+            extract_head_sad_series(per_step, num_layers=1, num_heads=1)
+
+    def test_out_of_range_layer_raises(self) -> None:
+        """Layer index >= num_layers must raise, not be silently ignored."""
+        per_step = [
+            {"step_idx": 0, "layer_idx": 0, "per_head_delta": [0.1]},
+            {"step_idx": 0, "layer_idx": 5, "per_head_delta": [0.9]},  # out of range
+        ]
+        with pytest.raises(ValueError, match="layer_idx"):
+            extract_head_sad_series(per_step, num_layers=2, num_heads=1)
+
+    def test_wrong_head_width_raises(self) -> None:
+        """per_head_delta length != num_heads must raise."""
+        per_step = [
+            {"step_idx": 0, "layer_idx": 0, "per_head_delta": [0.1, 0.2, 0.3]},
+        ]
+        with pytest.raises(ValueError, match="per_head_delta"):
+            extract_head_sad_series(per_step, num_layers=1, num_heads=2)
+
 
 # -------------------------------------------------------------------
 # Sequence transforms
@@ -267,6 +303,22 @@ class TestComputeSamplePEFeatures:
         assert "residual" in modes
         assert "raw" in modes
         assert "diff" in modes
+
+    def test_residual_with_partial_baseline_raises(self) -> None:
+        """Residual mode with incomplete baseline must raise, not silently use raw."""
+        per_step = self._make_per_step(30, 2, 1)
+        # Baseline only covers head (0, 0), missing (1, 0)
+        baseline = {(0, 0): [0.2 + 0.01 * i for i in range(30)]}
+        with pytest.raises(ValueError, match=r"baseline.*missing"):
+            compute_sample_pe_features(
+                per_step,
+                num_layers=2,
+                num_heads=1,
+                dataset_index=0,
+                modes=("raw", "diff"),
+                baseline=baseline,
+                include_segments=False,
+            )
 
     def test_serialization(self) -> None:
         per_step = self._make_per_step(30, 1, 1)

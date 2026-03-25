@@ -115,25 +115,69 @@ def extract_head_sad_series(
 ) -> dict[tuple[int, int], list[float]]:
     """Extract per-(layer, head) SAD delta time series from per-step records.
 
-    Each step may have one record per layer. For each (layer, head),
-    collects the delta values ordered by step_idx to form the temporal
-    series.
+    Each step must have exactly one record per layer. For each (layer, head),
+    collects the delta values ordered by step_idx to form the temporal series.
+
+    Fails closed on:
+    - Duplicate (layer_idx, step_idx) records
+    - Non-contiguous step_idx within a layer
+    - layer_idx outside [0, num_layers)
+    - per_head_delta length != num_heads
 
     Returns:
         Dict mapping (layer_idx, head_idx) to list of delta values
         ordered by generation step.
     """
-    # Group by (layer, step) to handle multi-layer records per step
+    if not per_step:
+        return {(layer, head): [] for layer in range(num_layers) for head in range(num_heads)}
+
+    # Validate and group by (layer, step)
     by_layer_step: dict[int, dict[int, list[float]]] = defaultdict(dict)
     for rec in per_step:
         layer = rec["layer_idx"]
         step = rec["step_idx"]
-        by_layer_step[layer][step] = rec["per_head_delta"]
+        deltas = rec["per_head_delta"]
 
+        if layer < 0 or layer >= num_layers:
+            raise ValueError(
+                f"layer_idx {layer} out of range [0, {num_layers}). Step accounting error."
+            )
+
+        if len(deltas) != num_heads:
+            raise ValueError(
+                f"per_head_delta has {len(deltas)} elements, expected {num_heads}. "
+                f"layer_idx={layer}, step_idx={step}."
+            )
+
+        if step in by_layer_step[layer]:
+            raise ValueError(
+                f"duplicate (layer_idx={layer}, step_idx={step}) record. "
+                f"Each (layer, step) pair must appear exactly once."
+            )
+
+        by_layer_step[layer][step] = deltas
+
+    # Validate contiguous step_idx per layer
     result: dict[tuple[int, int], list[float]] = {}
     for layer_idx in range(num_layers):
         step_data = by_layer_step.get(layer_idx, {})
-        steps = sorted(step_data.keys())
+        if not step_data:
+            for head_idx in range(num_heads):
+                result[(layer_idx, head_idx)] = []
+            continue
+
+        max_step = max(step_data.keys())
+        expected = set(range(max_step + 1))
+        actual = set(step_data.keys())
+        missing = expected - actual
+        if missing:
+            raise ValueError(
+                f"non-contiguous step_idx for layer {layer_idx}: "
+                f"missing {sorted(missing)}. "
+                f"This indicates a step-accounting bug."
+            )
+
+        steps = list(range(max_step + 1))
         for head_idx in range(num_heads):
             series = [step_data[s][head_idx] for s in steps]
             result[(layer_idx, head_idx)] = series
@@ -284,6 +328,18 @@ def compute_sample_pe_features(
     if baseline is not None and "residual" not in active_modes:
         active_modes.append("residual")
 
+    # Validate baseline coverage when residual mode is active.
+    # Partial baselines silently degrade residual to raw — reject.
+    if "residual" in active_modes and baseline is not None:
+        missing_heads = [key for key in head_series if key not in baseline]
+        if missing_heads:
+            raise ValueError(
+                f"baseline missing for {len(missing_heads)} head(s) "
+                f"but residual mode is active. "
+                f"First missing: {missing_heads[0]}. "
+                f"Partial baselines silently degrade residual to raw."
+            )
+
     results: list[HeadPEResult] = []
 
     for (layer_idx, head_idx), raw_series in head_series.items():
@@ -294,7 +350,7 @@ def compute_sample_pe_features(
         if "diff" in active_modes:
             mode_series["diff"] = _first_difference(raw_series)
         if "residual" in active_modes and baseline is not None:
-            head_baseline = baseline.get((layer_idx, head_idx))
+            head_baseline = baseline[(layer_idx, head_idx)]  # validated above
             mode_series["residual"] = _detrend_by_baseline(raw_series, head_baseline)
 
         for mode_name, series in mode_series.items():
