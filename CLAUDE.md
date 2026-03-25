@@ -8,25 +8,31 @@ Spectral Attention Divergence (SAD): a confabulation detection method. Runs soft
 
 ## Current State (2026-03-24)
 
-Milestones A + B complete. Audit remediation merged. CI infrastructure live. 73 tests passing.
+Milestones A + B complete. Phases C1-C3 merged (PR #6). Gate 0 passes on Mistral-7B. 97 tests (91 CPU + 6 GPU).
 
 ### What exists and works
 - `core/spectral.py` -- softmax + linear attention (newest-token), GQA expansion, cosine distance
 - `core/hooks.py` -- mock hook manager with GQA-correct reshape, non-interference proof
-- `core/registry.py` -- Mistral-only model family registry
+- `core/adapter.py` -- MistralAdapter: Tier A forward-replacement with 2 capture insertions. Verbatim upstream copy from transformers 4.57.x. Runtime version guard. Eager-only hard fail.
+- `core/instrument.py` -- InstrumentManager: orchestrates adapters via registry factory, step accounting via LogitsProcessorList, SAD delta computation. No parity yet.
+- `core/registry.py` -- Mistral-only model family registry with `adapter_factory`
+- `core/types.py` -- StepRecord, RawSampleRecord, ModelFamilyConfig (with adapter_factory)
 - `signal/ordinal.py` -- Bandt-Pompe ordinal patterns with tie exclusion, PE (D=3), `recommended_min_pe_length` policy threshold
 - `signal/derivatives.py` -- finite differences on delta series
 - `signal/aggregation.py` -- uniform-mean aggregation, fail-closed on step_idx gaps
 - `io/writer.py`, `io/reader.py`, `io/derived.py` -- raw/derived gzipped JSONL split
 - `.github/workflows/ci.yml` -- lint-typecheck + test jobs, uv-first, SHA-pinned, `--locked`
 - `.github/dependabot.yml` -- pip + github-actions, torch major blocked
+- `tests/gates/test_gate0_noninterference.py` -- Gate 0: token identity, logit exact match, per-step/per-layer bijection. Passes on Mistral-7B-Instruct-v0.2 (fp16, eager, revision-pinned).
+- `tests/gates/conftest.py` -- GPU fixture: model load with deterministic CUDA controls, revision-pinned
 
 ### What does NOT exist yet
 
-**Milestone C (next):**
-- Real Mistral family adapter (post-RoPE Q/K/V capture inside native attention forward)
-- Gate 0: Non-interference on real model (deterministic decoding, identical tokens)
-- Gate 1: Parity validation (recomputed fp32 softmax through native o_proj matches native output)
+**Phase C4 (next -- parity extension):**
+- Insertion 3 (pre-o_proj diagnostic capture in adapter)
+- ParityConfig + ParityRecord types
+- Parity mode in InstrumentManager
+- Gate 1 calibration script + frozen-tolerance Gate 1 pytest
 
 **Milestone D (after C passes):**
 - Gate 2: Memory stability under all-layer hooking (50 long-form generations)
@@ -37,11 +43,14 @@ Milestones A + B complete. Audit remediation merged. CI infrastructure live. 73 
 ## Plans (local only, gitignored)
 
 - `docs/plans/SPEC.md` -- Full instrument design spec (~705 lines). Method definition, precision strategy, hook architecture, capture tiers, verification gates.
-- `docs/plans/PLAN.md` -- Implementation plan v2. Tasks 1-8 done. Tasks 9-11 remain.
+- `docs/plans/PLAN.md` -- Implementation plan v2 (Milestones A-D). Tasks 1-8 done.
+- `docs/plans/MILESTONE_C_PLAN.md` -- Phase C1-C3 implementation plan. Complete.
+- `docs/plans/PHASE_C4_SPEC.md` -- Phase C4 design spec. Parity extension + Gate 1.
+- `docs/plans/PHASE_C4_PLAN.md` -- Phase C4 implementation plan. Next up.
 - `docs/plans/CI_CD_PROPOSAL.md` -- CI/CD research and proposal. Implemented.
 
 **Read SPEC.md before touching anything in Milestone C.** It contains critical contracts:
-- Step accounting (one forward = one step, how step_idx increments)
+- Step accounting (Forward 0 = token 1, expected records = num_layers * max_new_tokens)
 - Tie exclusion policy (tied ordinal windows excluded, not encoded)
 - Capture tiers (A/B/C) and parity discipline
 - Gate 1 tolerance discipline (calibrate first, freeze, never relax)
@@ -59,22 +68,41 @@ Milestones A + B complete. Audit remediation merged. CI infrastructure live. 73 
 | Benchmarks | **TruthfulQA generation** only until Gate 3 passes |
 | Baselines | **None** until signal validated across architectures |
 | Package manager | **uv** exclusively. No pip fallback. Lockfile committed. |
+| Transformers | **~=4.57** pinned. Forward-replacement adapter is version-coupled. |
+| Attention impl | **eager only** for instrumented models. Hard fail on non-eager. |
+| Model revision | **Pinned** in gate fixtures. Update only after re-validating gates. |
 | License | **Apache-2.0** (Copyright Project Navi LLC) |
 
 ## Milestone C: Real Instrumentation
 
 This is where the project stops being "well-structured code" and starts being "instrument that can lie." The standard is different: fewer files, tighter diffs, more brutal tests.
 
-**Scope (strictly):**
-1. Patch inside Mistral's native attention forward to capture post-RoPE Q/K/V
-2. Read the actual HuggingFace MistralAttention source to find the right tensor locus
-3. Preserve exact forward signature, return type, kwargs, device/dtype behavior
-4. Pass Gate 0 (identical tokens under deterministic decoding with hooks installed)
-5. Pass Gate 1 (recomputed fp32 softmax through native o_proj matches native output)
+### Phases C1-C3: Complete (PR #6)
+- MistralAdapter: verbatim forward copy from transformers 4.57.x, 3 marked insertions (capture, parity, pre-o_proj diagnostic). Eager-only hard fail. Runtime version guard.
+- InstrumentManager: registry-driven adapter creation, step accounting via LogitsProcessorList.
+- Gate 0: passes on Mistral-7B-Instruct-v0.2 (fp16, eager, revision-pinned). Token identity, logit exact match, per-step/per-layer bijection.
+- transformers pinned to ~=4.57. accelerate added as dependency.
+
+### Phase C4: Next (parity + Gate 1)
+- ParityConfig + ParityRecord types
+- Parity mode in InstrumentManager (recompute fp32 softmax, through native o_proj, compare)
+- Pre-o_proj diagnostic (debug channel, not gated)
+- Gate 1 calibration script (one-off, not CI)
+- Gate 1 pytest with frozen tolerances (cosine + relative L2 only, max-abs is diagnostic)
+
+### Adapter discipline
+- The patched forward is a VERBATIM COPY of upstream. Not a reimplementation.
+- Three marked insertion points: capture_fn after RoPE, pre_oproj diagnostic before reshape, parity_fn after o_proj.
+- No refactoring of upstream code. Any change requires Gate 0 re-verification.
+- `attn_implementation="eager"` required. Non-negotiable.
+
+### Gate 1 tolerance discipline
+- Run one calibration pass first (`scripts/calibrate_gate1.py`). Freeze tolerances. Never relax after seeing task results.
+- Gate metrics: cosine similarity + relative L2 (frozen thresholds on every record).
+- Diagnostics only: max absolute error, pre-o_proj cosine, layer drift.
+- Relative L2 formula: `||recomputed - native||_2 / (||native||_2 + 1e-12)`, all comparisons in fp32.
 
 **Out of scope for Milestone C:** benchmarks, Llama, Phi, scoring, analysis, anything beyond Mistral + Gate 0 + Gate 1.
-
-**Gate 1 tolerance discipline:** Run one calibration pass first. Freeze tolerances. Never relax them after seeing task results.
 
 ## Verification Standards
 
