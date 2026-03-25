@@ -244,17 +244,18 @@ def run_generation(args: argparse.Namespace) -> None:
                 sample_error = f"full_gen_mean_delta: {e}"
                 logger.error("Sample %d: %s", dataset_idx, sample_error)
 
-            try:
-                if ls_count > 0 and sample_error is None:
+            leading_span_matrix = None
+            if sample_error is not None:
+                # Full-gen failed; skip leading-span (sample already invalid)
+                pass
+            elif ls_count > 0:
+                try:
                     leading_span_matrix = compute_mean_delta_matrix(
                         records, num_layers, num_q_heads, max_step=ls_count
                     )
-                else:
-                    leading_span_matrix = None
-            except ValueError as e:
-                leading_span_matrix = None
-                sample_error = f"leading_span_mean_delta: {e}"
-                logger.error("Sample %d: %s", dataset_idx, sample_error)
+                except ValueError as e:
+                    sample_error = f"leading_span_mean_delta: {e}"
+                    logger.error("Sample %d: %s", dataset_idx, sample_error)
 
             if sample_error is not None:
                 invalid_samples.append(dataset_idx)
@@ -600,7 +601,7 @@ def run_analysis(args: argparse.Namespace) -> None:
     print("denominator grows with prefix length; interpret position trends")
     print("with caution.")
     print()
-    _print_position_stratified_sad(correct_full, incorrect_full, samples_by_idx, review_data)
+    _print_position_stratified_sad(correct_full, incorrect_full)
     print()
 
 
@@ -700,8 +701,6 @@ def _print_group_sad_summary(
 def _print_position_stratified_sad(
     correct_samples: list[dict[str, Any]],
     incorrect_samples: list[dict[str, Any]],
-    samples_by_idx: dict[int, dict[str, Any]],
-    review_data: list[dict[str, Any]],
 ) -> None:
     """Print SAD delta by generation position, grouped by human label.
 
