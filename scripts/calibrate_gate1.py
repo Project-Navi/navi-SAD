@@ -114,6 +114,14 @@ def main() -> None:
             mgr.install_layer(attn_module, layer_idx, num_q, num_kv)
 
         inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
+
+        # Enforce unpadded input -- parity closure does not use attention mask
+        assert "attention_mask" in inputs, f"Tokenizer did not produce attention_mask for {label}"
+        assert inputs["attention_mask"].all().item(), (
+            f"Padded input detected for {label}. "
+            f"Parity is valid only for unpadded single-sequence inputs."
+        )
+
         n_tok = max_new_tokens[label]
         with torch.no_grad():
             model.generate(
@@ -179,10 +187,15 @@ def main() -> None:
     if all_pre:
         print(f"\n  Pre-o_proj cosine: min={min(all_pre):.8f}")
 
-    # Recommendation
+    # Recommendation -- freeze in distance-from-1 space for cosine
     print("\n=== RECOMMENDATION ===")
-    recommended_cosine = round(min(all_cos) - 0.0001, 4)
-    recommended_l2 = round(max(all_l2) * 1.5, 6)
+    worst_cos_delta = 1.0 - min(all_cos)
+    # 3x headroom in error space, then convert back to similarity
+    recommended_cosine_delta = worst_cos_delta * 3.0
+    recommended_cosine = 1.0 - recommended_cosine_delta
+    recommended_l2 = max(all_l2) * 1.5
+    print(f"  Worst cosine delta (1 - cos): {worst_cos_delta:.2e}")
+    print(f"  Headroom factor: 3x")
     print(f"  COSINE_MIN = {recommended_cosine}")
     print(f"  RELATIVE_L2_MAX = {recommended_l2}")
     print()

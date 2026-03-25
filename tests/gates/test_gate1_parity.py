@@ -28,7 +28,11 @@ from navi_sad.core.types import ParityConfig
 # === FROZEN TOLERANCES ===
 # Set from scripts/calibrate_gate1.py output on 2026-03-24.
 # NEVER relax after observing benchmark results.
-COSINE_MIN: float = 0.9999
+#
+# Cosine frozen in distance-from-1 space:
+#   worst observed delta = 1.31e-6, 3x headroom -> 3.93e-6
+#   COSINE_MIN = 1 - 3.93e-6 = 0.999996
+COSINE_MIN: float = 0.999996
 RELATIVE_L2_MAX: float = 0.002759
 # =========================
 
@@ -73,6 +77,9 @@ class TestGate1Parity:
         mgr = self._install_parity(model)
         try:
             inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
+            # Enforce unpadded input -- parity closure does not use attention mask
+            assert "attention_mask" in inputs
+            assert inputs["attention_mask"].all().item(), "Padded input detected"
             with torch.no_grad():
                 model.generate(
                     **inputs,

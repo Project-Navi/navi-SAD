@@ -67,7 +67,8 @@ class MistralAdapter:
                 after RoPE application. Tensors are live (not cloned) --
                 the callback is responsible for detach/clone if needed.
             parity_fn: Optional. Called with (query_states, key_states,
-                value_states, native_output, o_proj) for Gate 1 parity.
+                value_states, native_output, o_proj, pre_oproj_output)
+                for Gate 1 parity.
         """
         _check_transformers_version()
 
@@ -109,7 +110,7 @@ class MistralAdapter:
 
         # --- BEGIN: verbatim upstream copy (transformers 4.57.x) ---
         # Source: MistralAttention.forward
-        # Only changes: 'self' -> 'module' (closure), two SAD insertions
+        # Only changes: 'self' -> 'module' (closure), three SAD insertions
         def forward(
             hidden_states: torch.Tensor,
             position_embeddings: tuple[torch.Tensor, torch.Tensor],
