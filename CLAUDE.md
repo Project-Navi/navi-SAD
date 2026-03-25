@@ -166,6 +166,13 @@ These are not guidelines. They are requirements.
 - No silent dtype coercion. Assert dtypes at capture boundaries.
 - If a tensor is supposed to be fp32, check that it is fp32.
 
+### Analysis discipline
+- Analysis code is part of the instrument. It lives in `src/navi_sad/`, not in hand-written scripts.
+- No hand-written analysis scripts producing results we claim to trust. If we don't have what we need, build it properly, verify it, then consider trusting the results.
+- Scripts in `scripts/` are entry points that call tested modules, not analysis logic.
+- Statistical computations (permutation nulls, effect sizes, eligibility) require the same TDD, type annotation, and edge-case coverage as instrument code.
+- A bug in analysis code is as dangerous as a bug in the adapter — it can silently produce wrong p-values.
+
 ### Test standards
 - TDD: write the failing test first, then implement
 - Every behavioral claim in a docstring must have a test that proves it
