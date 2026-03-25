@@ -127,16 +127,16 @@ class TestReviewSchemaRoundTrip:
             dataset_index=0,
             question="Question 0?",
             best_answer="Paris",
-            correct_answers=["Paris"],
-            incorrect_answers=["London"],
+            correct_answers=("Paris",),
+            incorrect_answers=("London",),
             rendered_prompt="[INST] Question 0? [/INST]",
-            prompt_token_ids=[1, 2, 3],
+            prompt_token_ids=(1, 2, 3),
             prompt_token_count=3,
-            generated_token_ids=[4, 5],
+            generated_token_ids=(4, 5),
             generated_token_count=2,
             generation_text="Paris",
             stop_reason="eos",
-            per_step=[],
+            per_step=(),
             full_gen_mean_delta=None,
             leading_span_mean_delta=None,
             leading_span_token_count=0,
@@ -144,15 +144,111 @@ class TestReviewSchemaRoundTrip:
             scorer_label="correct",
             scorer_leading_span="Paris",
             scorer_leading_span_stop_reason="eos",
-            scorer_matched_correct=["Paris"],
-            scorer_matched_incorrect=[],
+            scorer_matched_correct=("Paris",),
+            scorer_matched_incorrect=(),
         )
         review = make_review_from_sample(sample)
         for fld in REVIEW_READONLY_FIELDS:
             assert hasattr(review, fld), f"make_review_from_sample missing: {fld}"
-            assert getattr(review, fld) == getattr(sample, fld), (
-                f"Field {fld} differs: review={getattr(review, fld)!r} "
-                f"vs sample={getattr(sample, fld)!r}"
+            # List fields are defensively copied, so compare values not identity
+            review_val = getattr(review, fld)
+            sample_val = getattr(sample, fld)
+            # Tuples from sample become lists in review (defensive copy)
+            if isinstance(sample_val, tuple):
+                assert review_val == list(sample_val), (
+                    f"Field {fld} differs: review={review_val!r} vs sample={sample_val!r}"
+                )
+            else:
+                assert review_val == sample_val, (
+                    f"Field {fld} differs: review={review_val!r} vs sample={sample_val!r}"
+                )
+
+    def test_make_review_does_not_alias_lists(self) -> None:
+        """Review list fields must not be the same object as sample fields."""
+        sample = PilotSampleRecord(
+            dataset_index=0,
+            question="Q?",
+            best_answer="A",
+            correct_answers=("A",),
+            incorrect_answers=("B",),
+            rendered_prompt="[INST] Q? [/INST]",
+            prompt_token_ids=(1,),
+            prompt_token_count=1,
+            generated_token_ids=(2,),
+            generated_token_count=1,
+            generation_text="A",
+            stop_reason="eos",
+            per_step=(),
+            full_gen_mean_delta=None,
+            leading_span_mean_delta=None,
+            leading_span_token_count=0,
+            leading_span_fallback=False,
+            scorer_label="correct",
+            scorer_leading_span="A",
+            scorer_leading_span_stop_reason="eos",
+            scorer_matched_correct=("A",),
+            scorer_matched_incorrect=(),
+        )
+        review = make_review_from_sample(sample)
+        # Lists in review should be new objects (defensive copies)
+        assert review.correct_answers is not sample.correct_answers
+        assert review.incorrect_answers is not sample.incorrect_answers
+        assert review.scorer_matched_correct is not sample.scorer_matched_correct
+
+    def test_invalid_stop_reason_rejected(self) -> None:
+        """Construction with invalid stop_reason must raise."""
+        with pytest.raises(ValueError, match="stop_reason"):
+            PilotSampleRecord(
+                dataset_index=0,
+                question="Q?",
+                best_answer="A",
+                correct_answers=(),
+                incorrect_answers=(),
+                rendered_prompt="p",
+                prompt_token_ids=(),
+                prompt_token_count=0,
+                generated_token_ids=(),
+                generated_token_count=0,
+                generation_text="",
+                stop_reason="invalid",
+                per_step=(),
+                full_gen_mean_delta=None,
+                leading_span_mean_delta=None,
+                leading_span_token_count=0,
+                leading_span_fallback=False,
+                scorer_label="correct",
+                scorer_leading_span="",
+                scorer_leading_span_stop_reason="eos",
+                scorer_matched_correct=(),
+                scorer_matched_incorrect=(),
+            )
+
+    def test_invalid_scorer_label_rejected(self) -> None:
+        """Construction with invalid scorer_label must raise."""
+        with pytest.raises(ValueError, match="scorer_label"):
+            PilotSampleRecord(
+                dataset_index=0,
+                question="Q?",
+                best_answer="A",
+                correct_answers=(),
+                incorrect_answers=(),
+                rendered_prompt="p",
+                prompt_token_ids=(),
+                prompt_token_count=0,
+                generated_token_ids=(),
+                generated_token_count=0,
+                generation_text="",
+                stop_reason="eos",
+                per_step=(),
+                full_gen_mean_delta=None,
+                leading_span_mean_delta=None,
+                leading_span_token_count=0,
+                leading_span_fallback=False,
+                scorer_label="maybe",
+                scorer_leading_span="",
+                scorer_leading_span_stop_reason="eos",
+                scorer_matched_correct=(),
+                scorer_matched_incorrect=(),
             )
 
 

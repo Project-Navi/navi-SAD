@@ -276,30 +276,38 @@ def run_generation(args: argparse.Namespace) -> None:
                 for r in records
             ]
 
-            # Build sample record (typed schema)
+            # Build sample record (frozen typed schema)
             sample = PilotSampleRecord(
                 dataset_index=dataset_idx,
                 question=row["question"],
                 best_answer=row["best_answer"],
-                correct_answers=row["correct_answers"],
-                incorrect_answers=row["incorrect_answers"],
+                correct_answers=tuple(row["correct_answers"]),
+                incorrect_answers=tuple(row["incorrect_answers"]),
                 rendered_prompt=rendered,
-                prompt_token_ids=prompt_token_ids,
+                prompt_token_ids=tuple(prompt_token_ids),
                 prompt_token_count=prompt_length,
-                generated_token_ids=generated_token_ids,
+                generated_token_ids=tuple(generated_token_ids),
                 generated_token_count=generated_token_count,
                 generation_text=generation_text,
                 stop_reason=stop_reason,
-                per_step=per_step,
-                full_gen_mean_delta=full_gen_matrix,
-                leading_span_mean_delta=leading_span_matrix,
+                per_step=tuple(per_step),
+                full_gen_mean_delta=(
+                    tuple(tuple(row_vals) for row_vals in full_gen_matrix)
+                    if full_gen_matrix is not None
+                    else None
+                ),
+                leading_span_mean_delta=(
+                    tuple(tuple(row_vals) for row_vals in leading_span_matrix)
+                    if leading_span_matrix is not None
+                    else None
+                ),
                 leading_span_token_count=ls_count,
                 leading_span_fallback=ls_fallback,
                 scorer_label=scorer_label,
                 scorer_leading_span=span,
                 scorer_leading_span_stop_reason=span_stop_reason,
-                scorer_matched_correct=matched_correct,
-                scorer_matched_incorrect=matched_incorrect,
+                scorer_matched_correct=tuple(matched_correct),
+                scorer_matched_incorrect=tuple(matched_incorrect),
                 sample_error=sample_error,
             )
             samples.append(sample)

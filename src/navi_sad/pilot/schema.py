@@ -1,9 +1,13 @@
-"""Typed schema for Gate 3 pilot artifacts.
+"""Typed write-side schema for Gate 3 pilot artifacts.
 
 Single source of truth for samples.json and review.json field
-definitions. Uses dataclasses for runtime enforcement and enums
-for constrained values. The review record is derived from the
-sample record so field drift is structurally impossible.
+definitions on the write path. Uses frozen dataclasses with
+__post_init__ validation for constrained values (enums). The review
+record is derived from the sample record so field drift between
+write-path artifacts is structurally impossible.
+
+The read/analysis path still operates on raw dicts loaded from JSON.
+Full end-to-end typed enforcement (including analysis) is deferred.
 
 Design rule: dataclasses for repo-owned persisted artifacts.
 Pydantic reserved for untrusted LLM boundary I/O (future judge).
@@ -54,46 +58,65 @@ class SpanStopReason(enum.Enum):
     EOS = "eos"
 
 
-@dataclass
+def _validate_enum_field(value: str, enum_type: type[enum.Enum], field_name: str) -> None:
+    """Validate that a string value is a valid member of an enum."""
+    valid = {e.value for e in enum_type}
+    if value not in valid:
+        raise ValueError(f"Invalid {field_name}: {value!r}. Must be one of: {sorted(valid)}")
+
+
+@dataclass(frozen=True)
 class PilotSampleRecord:
-    """Per-sample entry in samples.json (immutable after generation)."""
+    """Per-sample entry in samples.json (frozen after construction)."""
 
     # Identity
     dataset_index: int
     question: str
     best_answer: str
-    correct_answers: list[str]
-    incorrect_answers: list[str]
+    correct_answers: tuple[str, ...]
+    incorrect_answers: tuple[str, ...]
 
     # Generation
     rendered_prompt: str
-    prompt_token_ids: list[int]
+    prompt_token_ids: tuple[int, ...]
     prompt_token_count: int
-    generated_token_ids: list[int]
+    generated_token_ids: tuple[int, ...]
     generated_token_count: int
     generation_text: str
-    stop_reason: str  # StopReason.value
+    stop_reason: str
 
     # Measurement
-    per_step: list[dict[str, Any]]
-    full_gen_mean_delta: list[list[float]] | None
-    leading_span_mean_delta: list[list[float]] | None
+    per_step: tuple[dict[str, Any], ...]
+    full_gen_mean_delta: tuple[tuple[float, ...], ...] | None
+    leading_span_mean_delta: tuple[tuple[float, ...], ...] | None
     leading_span_token_count: int
     leading_span_fallback: bool
 
     # Scoring
-    scorer_label: str  # Label.value
+    scorer_label: str
     scorer_leading_span: str
-    scorer_leading_span_stop_reason: str  # SpanStopReason.value
-    scorer_matched_correct: list[str]
-    scorer_matched_incorrect: list[str]
+    scorer_leading_span_stop_reason: str
+    scorer_matched_correct: tuple[str, ...]
+    scorer_matched_incorrect: tuple[str, ...]
 
     # Instrument health
     sample_error: str | None = None
 
+    def __post_init__(self) -> None:
+        """Validate constrained fields at construction time."""
+        _validate_enum_field(self.stop_reason, StopReason, "stop_reason")
+        _validate_enum_field(self.scorer_label, Label, "scorer_label")
+        _validate_enum_field(
+            self.scorer_leading_span_stop_reason,
+            SpanStopReason,
+            "scorer_leading_span_stop_reason",
+        )
+
     def to_dict(self) -> dict[str, Any]:
-        """Serialize to JSON-compatible dict."""
-        return asdict(self)
+        """Serialize to JSON-compatible dict (lists, not tuples)."""
+        d = asdict(self)
+        # asdict converts tuples to lists, which is correct for JSON.
+        return d
 
 
 @dataclass
@@ -101,7 +124,8 @@ class PilotReviewRecord:
     """Per-sample entry in review.json (human-editable).
 
     All fields except the human-editable ones are copied from
-    PilotSampleRecord and treated as read-only.
+    PilotSampleRecord and treated as read-only. Not frozen because
+    human_label/disagreement fields are set during manual review.
     """
 
     # Copied from sample (read-only)
@@ -113,9 +137,9 @@ class PilotReviewRecord:
     rendered_prompt: str
     generation_text: str
     generated_token_count: int
-    scorer_label: str  # Label.value
+    scorer_label: str
     scorer_leading_span: str
-    scorer_leading_span_stop_reason: str  # SpanStopReason.value
+    scorer_leading_span_stop_reason: str
     scorer_matched_correct: list[str]
     scorer_matched_incorrect: list[str]
 
@@ -123,6 +147,15 @@ class PilotReviewRecord:
     human_label: str = ""
     disagreement_category: str = ""
     disagreement_note: str = ""
+
+    def __post_init__(self) -> None:
+        """Validate constrained fields at construction time."""
+        _validate_enum_field(self.scorer_label, Label, "scorer_label")
+        _validate_enum_field(
+            self.scorer_leading_span_stop_reason,
+            SpanStopReason,
+            "scorer_leading_span_stop_reason",
+        )
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize to JSON-compatible dict."""
@@ -215,14 +248,14 @@ def make_review_from_sample(sample: PilotSampleRecord) -> PilotReviewRecord:
         dataset_index=sample.dataset_index,
         question=sample.question,
         best_answer=sample.best_answer,
-        correct_answers=sample.correct_answers,
-        incorrect_answers=sample.incorrect_answers,
+        correct_answers=list(sample.correct_answers),
+        incorrect_answers=list(sample.incorrect_answers),
         rendered_prompt=sample.rendered_prompt,
         generation_text=sample.generation_text,
         generated_token_count=sample.generated_token_count,
         scorer_label=sample.scorer_label,
         scorer_leading_span=sample.scorer_leading_span,
         scorer_leading_span_stop_reason=sample.scorer_leading_span_stop_reason,
-        scorer_matched_correct=sample.scorer_matched_correct,
-        scorer_matched_incorrect=sample.scorer_matched_incorrect,
+        scorer_matched_correct=list(sample.scorer_matched_correct),
+        scorer_matched_incorrect=list(sample.scorer_matched_incorrect),
     )
