@@ -6,6 +6,7 @@ Phase 1: Mistral only. Other families earn entries after gates pass.
 
 import logging
 
+from navi_sad.core.adapter import MistralAdapter
 from navi_sad.core.types import ModelFamilyConfig
 
 logger = logging.getLogger(__name__)
@@ -21,6 +22,7 @@ MODEL_REGISTRY: dict[str, ModelFamilyConfig] = {
         head_dim_attr="head_dim",
         gqa_expansion=True,
         notes="GQA + sliding window (disabled for SAD).",
+        adapter_factory=MistralAdapter,
     ),
 }
 

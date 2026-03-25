@@ -1,6 +1,10 @@
 """Core data types for navi-SAD instrument."""
 
+from __future__ import annotations
+
+from collections.abc import Callable
 from dataclasses import dataclass, field
+from typing import Any
 
 import torch
 
@@ -59,3 +63,6 @@ class ModelFamilyConfig:
     head_dim_attr: str
     gqa_expansion: bool
     notes: str = ""
+    # Returns an adapter instance. Typed as Any to avoid circular import
+    # with adapter.py. Concrete type is MistralAdapter (Phase 1 scope).
+    adapter_factory: Callable[[], Any] | None = None
