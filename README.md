@@ -14,17 +14,19 @@ Core hypothesis: when a model confabulates, the divergence between softmax and l
 
 - **Milestones A + B:** Complete. Core math, types, I/O, mock hooks, signal processing.
 - **Milestone C:** Complete. Real instrumentation proven on Mistral-7B.
-- **Milestone D:** Next. TruthfulQA benchmark runner, memory stability (Gate 2), head sparsity analysis (Gate 3).
+- **Milestone D (Gates 2-3):** Gate 2 passes. Gate 3 next (TruthfulQA head sparsity).
 
-109 tests (99 CPU + 10 GPU). CI enforces lint, format, typecheck, and test on every PR.
+111 tests (99 CPU + 12 GPU). CI enforces lint, format, typecheck, and test on every PR.
 
-### Milestone C Findings
+### Instrument Validation Summary
 
-The instrument is validated on Mistral-7B-Instruct-v0.2 (fp16, eager attention):
+All validation performed on Mistral-7B-Instruct-v0.2 (fp16, eager attention, revision-pinned).
 
-**Gate 0 (Non-interference):** Adapter produces bit-identical tokens and logits under deterministic greedy decoding. Per-step/per-layer record bijection verified. The observer does not perturb the system.
+**Gate 0 -- Non-interference.** The adapter produces bit-identical tokens and logits under deterministic greedy decoding with and without instrumentation installed. Per-step/per-layer record bijection verified across 32 layers. The observer does not perturb the system.
 
-**Gate 1 (Parity):** Recomputed fp32 softmax through native o_proj matches native output. Calibrated across 2240 parity records (32 layers, short + medium sequences). Frozen thresholds: cosine similarity >= 0.999996, relative L2 <= 0.00276. Pre-o_proj diagnostic confirms error is negligible before projection (min cosine 0.99999917). The captured Q/K/V faithfully reproduce the model's attention computation.
+**Gate 1 -- Parity.** Recomputed fp32 softmax attention, passed through the model's native o_proj, matches the native module output for the newest token. Calibrated across 2240 parity records (32 layers, short + medium sequences, 3 prompt shapes). Frozen thresholds: cosine similarity >= 0.999996 (worst observed: 0.99999869), relative L2 <= 0.00276 (worst observed: 0.00184). Pre-o_proj diagnostic confirms the error source is the expected fp32/fp16 precision asymmetry in the V matmul, not capture or projection bugs.
+
+**Gate 2 -- Stability.** 50 consecutive generations with full instrumentation and JSONL serialization. Zero VRAM creep (0.0 MiB spread across 50 samples, limit 16 MiB). CPU RSS growth 0.7 MiB (limit 128 MiB). All 50 raw records round-trip through gzipped JSONL with intact provenance: schema fields, per-step/per-layer bijection, StepRecord type reconstruction, and all per-head cosine deltas finite and in [0, 2]. No graph retention, no memory leaks, no serialization drift.
 
 ## Scope (Phase 1)
 
@@ -91,7 +93,7 @@ tests/
 |------|------|--------|
 | 0 | Non-interference (identical tokens + logits with/without hooks) | **Passes** |
 | 1 | Parity (recomputed fp32 softmax through o_proj matches native) | **Passes** |
-| 2 | Memory stability (50 generations, no VRAM creep) | Pending |
+| 2 | Memory stability (50 generations, no VRAM creep) | **Passes** |
 | 3 | Head sparsity (200 TruthfulQA samples, Cohen's d) | Pending |
 
 ## License
