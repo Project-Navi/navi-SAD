@@ -4,9 +4,12 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING
 
 import torch
+
+if TYPE_CHECKING:
+    from navi_sad.core.adapter import MistralAdapter
 
 
 @dataclass
@@ -63,6 +66,4 @@ class ModelFamilyConfig:
     head_dim_attr: str
     gqa_expansion: bool
     notes: str = ""
-    # Returns an adapter instance. Typed as Any to avoid circular import
-    # with adapter.py. Concrete type is MistralAdapter (Phase 1 scope).
-    adapter_factory: Callable[[], Any] | None = None
+    adapter_factory: Callable[[], MistralAdapter] | None = None

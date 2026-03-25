@@ -105,7 +105,6 @@ class MistralAdapter:
         is a potential non-interference violation.
         """
         from transformers.models.mistral.modeling_mistral import (
-            ALL_ATTENTION_FUNCTIONS,
             apply_rotary_pos_emb,
             eager_attention_forward,
         )
@@ -150,20 +149,24 @@ class MistralAdapter:
                     cache_kwargs,  # type: ignore[union-attr]
                 )
 
-            attention_interface: Callable = eager_attention_forward
+            # Eager-only: hard-fail if the model was loaded with a different
+            # attention implementation. This adapter patches the forward
+            # directly and cannot replicate fused kernel behavior.
             if module.config._attn_implementation != "eager":  # type: ignore[union-attr]
-                attention_interface = ALL_ATTENTION_FUNCTIONS[
-                    module.config._attn_implementation  # type: ignore[union-attr]
-                ]
+                raise RuntimeError(
+                    f"MistralAdapter requires attn_implementation='eager', "
+                    f"got '{module.config._attn_implementation}'. "  # type: ignore[union-attr]
+                    f"Load model with attn_implementation='eager'."
+                )
 
-            attn_output, attn_weights = attention_interface(
+            attn_output, attn_weights = eager_attention_forward(
                 module,
                 query_states,
                 key_states,
                 value_states,
                 attention_mask,
-                dropout=0.0 if not module.training else module.attention_dropout,  # type: ignore[union-attr]
-                scaling=module.scaling,  # type: ignore[union-attr]
+                dropout=0.0 if not module.training else module.attention_dropout,  # type: ignore[union-attr, arg-type]
+                scaling=module.scaling,  # type: ignore[union-attr, arg-type]
                 sliding_window=getattr(module.config, "sliding_window", None),  # type: ignore[union-attr]
                 **kwargs,
             )
