@@ -299,6 +299,22 @@ class TestInstrumentManagerParity:
         mgr.reset()
         assert len(mgr.get_parity_records()) == 0
 
+    def test_parity_batch_gt1_raises(self) -> None:
+        """Parity closure raises ValueError on batch size > 1."""
+        import pytest
+
+        attn, config = _make_small_attn()
+        parity = ParityConfig(enabled=True)
+        mgr = InstrumentManager(_TEST_FAMILY, sink_exclude=0, parity=parity)
+        mgr.install_layer(attn, layer_idx=0, num_q_heads=4, num_kv_heads=2)
+
+        # B=2 should trigger the guard
+        hidden_states = torch.randn(2, 8, 64)
+        pos_emb = _make_position_embeddings(config, 8)
+        with pytest.raises(ValueError, match="B=1"):
+            with torch.no_grad():
+                attn(hidden_states, pos_emb, None)
+
     def test_parity_non_interference(self) -> None:
         """Parity mode must not change module output."""
         attn, config = _make_small_attn()
