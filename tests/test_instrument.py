@@ -11,7 +11,7 @@ from transformers.models.mistral.modeling_mistral import (
 
 from navi_sad.core.adapter import MistralAdapter
 from navi_sad.core.instrument import InstrumentManager
-from navi_sad.core.types import ModelFamilyConfig
+from navi_sad.core.types import ModelFamilyConfig, ParityConfig
 
 _CPU = torch.device("cpu")
 
@@ -165,3 +165,107 @@ class TestInstrumentManager:
 
         processor_list = LogitsProcessorList([callback])
         assert len(processor_list) == 1
+
+
+class TestInstrumentManagerParity:
+    def test_parity_mode_produces_records(self) -> None:
+        attn, config = _make_small_attn()
+        parity = ParityConfig(enabled=True, include_pre_oproj=True)
+        mgr = InstrumentManager(_TEST_FAMILY, sink_exclude=0, parity=parity)
+        mgr.install_layer(attn, layer_idx=0, num_q_heads=4, num_kv_heads=2)
+
+        hidden_states = torch.randn(1, 8, 64)
+        pos_emb = _make_position_embeddings(config, 8)
+        with torch.no_grad():
+            attn(hidden_states, pos_emb, None)
+        mgr.step()
+
+        parity_records = mgr.get_parity_records()
+        assert len(parity_records) == 1
+        assert parity_records[0].layer_idx == 0
+        assert parity_records[0].step_idx == 0
+        assert 0.0 <= parity_records[0].cosine_similarity <= 1.0
+        assert parity_records[0].relative_l2_error >= 0.0
+        assert parity_records[0].max_absolute_error >= 0.0
+        assert parity_records[0].pre_oproj_cosine is not None
+
+    def test_parity_none_produces_no_records(self) -> None:
+        """parity=None means no parity at all."""
+        attn, config = _make_small_attn()
+        mgr = InstrumentManager(_TEST_FAMILY, sink_exclude=0)
+        mgr.install_layer(attn, layer_idx=0, num_q_heads=4, num_kv_heads=2)
+
+        hidden_states = torch.randn(1, 8, 64)
+        pos_emb = _make_position_embeddings(config, 8)
+        with torch.no_grad():
+            attn(hidden_states, pos_emb, None)
+        mgr.step()
+
+        assert len(mgr.get_parity_records()) == 0
+
+    def test_parity_enabled_false_produces_no_records(self) -> None:
+        """ParityConfig(enabled=False) also means no parity."""
+        attn, config = _make_small_attn()
+        parity = ParityConfig(enabled=False)
+        mgr = InstrumentManager(_TEST_FAMILY, sink_exclude=0, parity=parity)
+        mgr.install_layer(attn, layer_idx=0, num_q_heads=4, num_kv_heads=2)
+
+        hidden_states = torch.randn(1, 8, 64)
+        pos_emb = _make_position_embeddings(config, 8)
+        with torch.no_grad():
+            attn(hidden_states, pos_emb, None)
+        mgr.step()
+
+        assert len(mgr.get_parity_records()) == 0
+
+    def test_parity_without_pre_oproj(self) -> None:
+        attn, config = _make_small_attn()
+        parity = ParityConfig(enabled=True, include_pre_oproj=False)
+        mgr = InstrumentManager(_TEST_FAMILY, sink_exclude=0, parity=parity)
+        mgr.install_layer(attn, layer_idx=0, num_q_heads=4, num_kv_heads=2)
+
+        hidden_states = torch.randn(1, 8, 64)
+        pos_emb = _make_position_embeddings(config, 8)
+        with torch.no_grad():
+            attn(hidden_states, pos_emb, None)
+        mgr.step()
+
+        records = mgr.get_parity_records()
+        assert len(records) == 1
+        assert records[0].pre_oproj_cosine is None
+
+    def test_reset_clears_parity_records(self) -> None:
+        attn, config = _make_small_attn()
+        parity = ParityConfig(enabled=True)
+        mgr = InstrumentManager(_TEST_FAMILY, sink_exclude=0, parity=parity)
+        mgr.install_layer(attn, layer_idx=0, num_q_heads=4, num_kv_heads=2)
+
+        hidden_states = torch.randn(1, 8, 64)
+        pos_emb = _make_position_embeddings(config, 8)
+        with torch.no_grad():
+            attn(hidden_states, pos_emb, None)
+        mgr.step()
+
+        assert len(mgr.get_parity_records()) == 1
+        mgr.reset()
+        assert len(mgr.get_parity_records()) == 0
+
+    def test_parity_non_interference(self) -> None:
+        """Parity mode must not change module output."""
+        attn, config = _make_small_attn()
+        torch.manual_seed(42)
+
+        hidden_states = torch.randn(1, 8, 64)
+        pos_emb = _make_position_embeddings(config, 8)
+
+        with torch.no_grad():
+            out_clean, _ = attn(hidden_states, pos_emb, None)
+
+        parity = ParityConfig(enabled=True)
+        mgr = InstrumentManager(_TEST_FAMILY, sink_exclude=0, parity=parity)
+        mgr.install_layer(attn, layer_idx=0, num_q_heads=4, num_kv_heads=2)
+
+        with torch.no_grad():
+            out_parity, _ = attn(hidden_states, pos_emb, None)
+
+        torch.testing.assert_close(out_parity, out_clean, rtol=0, atol=0)
