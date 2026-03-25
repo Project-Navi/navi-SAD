@@ -26,7 +26,7 @@ def mistral_model_and_tokenizer():
     tokenizer = AutoTokenizer.from_pretrained(model_id)
     model = AutoModelForCausalLM.from_pretrained(
         model_id,
-        torch_dtype=torch.float16,
+        dtype=torch.float16,
         device_map="cuda",
         attn_implementation="eager",
     )
