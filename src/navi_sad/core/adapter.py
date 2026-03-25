@@ -6,7 +6,7 @@ apply_rotary_pos_emb and an optional parity callback after o_proj.
 
 ADAPTER DISCIPLINE:
 - The patched forward is a VERBATIM COPY of upstream, not a reimplementation.
-- Only two insertion points: capture_fn after RoPE, parity_fn after o_proj.
+- Only three insertion points: capture_fn after RoPE, pre_oproj before reshape, parity_fn after o_proj.
 - No refactoring, no kwarg narrowing, no "cleanup" of the upstream code.
 - Runtime version guard rejects incompatible transformers versions.
 """
@@ -49,7 +49,7 @@ class MistralAdapter:
     """Tier A adapter for MistralForCausalLM attention modules.
 
     Captures post-RoPE Q/K/V by replacing the attention module's forward
-    method with a verbatim copy that inserts capture callbacks at two
+    method with a verbatim copy that inserts capture callbacks at three
     marked insertion points.
     """
 
@@ -98,7 +98,7 @@ class MistralAdapter:
         """Build patched forward: verbatim upstream copy + capture insertions.
 
         IMPORTANT: This is a VERBATIM COPY of MistralAttention.forward
-        from transformers 4.57.x with two marked insertion points.
+        from transformers 4.57.x with three marked insertion points.
         Do not refactor. Do not "clean up." Any deviation from upstream
         is a potential non-interference violation.
         """
@@ -169,6 +169,14 @@ class MistralAdapter:
                 **kwargs,
             )
 
+            # === SAD INSERTION 3: pre-o_proj diagnostic (parity only) ===
+            # attn_output here is [B, L, H, D] (post-transpose from eager_attention_forward).
+            # Slice newest token along sequence dim (dim=1).
+            pre_oproj_last = None
+            if parity_fn is not None:
+                pre_oproj_last = attn_output[:, -1:, :, :].detach().clone()  # [B, 1, H, D]
+            # === END INSERTION 3 ===
+
             attn_output = attn_output.reshape(*input_shape, -1).contiguous()
             attn_output = module.o_proj(attn_output)  # type: ignore[union-attr, operator]
 
@@ -183,6 +191,7 @@ class MistralAdapter:
                     value_states=value_states,
                     native_output=attn_output,
                     o_proj=module.o_proj,  # type: ignore[union-attr]
+                    pre_oproj_output=pre_oproj_last,
                 )
             # === END INSERTION 2 ===
 

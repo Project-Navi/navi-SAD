@@ -210,3 +210,50 @@ class TestAdapterNonInterference:
 
         assert type(result_original) is type(result_patched)
         assert len(result_original) == len(result_patched)
+
+
+class TestAdapterParityCallback:
+    def test_parity_fn_receives_pre_oproj_output(self) -> None:
+        """Parity callback receives pre-o_proj newest-token tensor."""
+        attn, config = _make_small_attn()
+        parity_data: dict = {}
+
+        def parity_fn(**kwargs) -> None:
+            parity_data.update(kwargs)
+
+        adapter = MistralAdapter()
+        adapter.install(
+            attn,
+            capture_fn=lambda q, k, v: None,
+            parity_fn=parity_fn,
+        )
+
+        hidden_states = torch.randn(1, 8, 64)
+        pos_emb = _make_position_embeddings(config, 8)
+        with torch.no_grad():
+            attn(hidden_states, pos_emb, None)
+
+        assert "pre_oproj_output" in parity_data
+        assert parity_data["pre_oproj_output"] is not None
+        # Shape: [B, 1, H, D] -- newest token along seq dim, pre-reshape
+        head_dim = 64 // config.num_attention_heads
+        assert parity_data["pre_oproj_output"].shape == (
+            1,
+            1,
+            config.num_attention_heads,
+            head_dim,
+        )
+
+    def test_no_parity_fn_means_no_pre_oproj_capture(self) -> None:
+        """Without parity_fn, no pre-o_proj capture overhead."""
+        attn, config = _make_small_attn()
+        adapter = MistralAdapter()
+        adapter.install(attn, capture_fn=lambda q, k, v: None)
+
+        hidden_states = torch.randn(1, 8, 64)
+        pos_emb = _make_position_embeddings(config, 8)
+        with torch.no_grad():
+            out, _ = attn(hidden_states, pos_emb, None)
+
+        # Should still produce valid output (non-interference)
+        assert out.shape == (1, 8, 64)
