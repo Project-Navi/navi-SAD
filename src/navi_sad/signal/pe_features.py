@@ -143,6 +143,12 @@ def extract_head_sad_series(
                 f"layer_idx {layer} out of range [0, {num_layers}). Step accounting error."
             )
 
+        if step < 0:
+            raise ValueError(
+                f"step_idx {step} is negative (layer_idx={layer}). "
+                f"Step indices must be non-negative."
+            )
+
         if len(deltas) != num_heads:
             raise ValueError(
                 f"per_head_delta has {len(deltas)} elements, expected {num_heads}. "
@@ -157,7 +163,23 @@ def extract_head_sad_series(
 
         by_layer_step[layer][step] = deltas
 
-    # Validate contiguous step_idx per layer
+    # Compute global expected step set from all populated layers.
+    # Every populated layer must cover exactly the same steps.
+    populated_layers = {layer_id: set(steps.keys()) for layer_id, steps in by_layer_step.items()}
+    if populated_layers:
+        global_steps = next(iter(populated_layers.values()))
+        for layer_idx, layer_steps in populated_layers.items():
+            if layer_steps != global_steps:
+                extra = layer_steps - global_steps
+                missing = global_steps - layer_steps
+                raise ValueError(
+                    f"step set mismatch across layers. "
+                    f"Layer {layer_idx} has {sorted(layer_steps)}, "
+                    f"expected {sorted(global_steps)}. "
+                    f"Extra: {sorted(extra)}, missing: {sorted(missing)}."
+                )
+
+    # Validate contiguous step_idx (same check, now on the shared step set)
     result: dict[tuple[int, int], list[float]] = {}
     for layer_idx in range(num_layers):
         step_data = by_layer_step.get(layer_idx, {})
@@ -327,6 +349,13 @@ def compute_sample_pe_features(
     active_modes = list(modes)
     if baseline is not None and "residual" not in active_modes:
         active_modes.append("residual")
+
+    # Reject explicit residual mode without a baseline.
+    if "residual" in active_modes and baseline is None:
+        raise ValueError(
+            "residual mode requested but baseline is None. "
+            "Provide a baseline or remove 'residual' from modes."
+        )
 
     # Validate baseline coverage when residual mode is active.
     # Partial baselines silently degrade residual to raw — reject.

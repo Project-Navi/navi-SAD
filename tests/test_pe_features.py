@@ -91,6 +91,29 @@ class TestExtractHeadSadSeries:
         with pytest.raises(ValueError, match="per_head_delta"):
             extract_head_sad_series(per_step, num_layers=1, num_heads=2)
 
+    def test_cross_layer_step_mismatch_raises(self) -> None:
+        """All layers must cover the same step set. Layer 1 missing step 2 must raise."""
+        per_step = [
+            {"step_idx": 0, "layer_idx": 0, "per_head_delta": [0.1]},
+            {"step_idx": 1, "layer_idx": 0, "per_head_delta": [0.2]},
+            {"step_idx": 2, "layer_idx": 0, "per_head_delta": [0.3]},
+            {"step_idx": 0, "layer_idx": 1, "per_head_delta": [0.4]},
+            {"step_idx": 1, "layer_idx": 1, "per_head_delta": [0.5]},
+            # layer 1 missing step 2
+        ]
+        with pytest.raises(ValueError, match=r"step.*mismatch"):
+            extract_head_sad_series(per_step, num_layers=2, num_heads=1)
+
+    def test_negative_step_idx_raises(self) -> None:
+        """Negative step_idx must raise, not be silently ignored."""
+        per_step = [
+            {"step_idx": -1, "layer_idx": 0, "per_head_delta": [0.1]},
+            {"step_idx": 0, "layer_idx": 0, "per_head_delta": [0.2]},
+            {"step_idx": 1, "layer_idx": 0, "per_head_delta": [0.3]},
+        ]
+        with pytest.raises(ValueError, match=r"step_idx.*negative"):
+            extract_head_sad_series(per_step, num_layers=1, num_heads=1)
+
 
 # -------------------------------------------------------------------
 # Sequence transforms
@@ -303,6 +326,20 @@ class TestComputeSamplePEFeatures:
         assert "residual" in modes
         assert "raw" in modes
         assert "diff" in modes
+
+    def test_residual_without_baseline_raises(self) -> None:
+        """Explicit residual mode with baseline=None must raise, not silently skip."""
+        per_step = self._make_per_step(30, 1, 1)
+        with pytest.raises(ValueError, match=r"residual.*baseline"):
+            compute_sample_pe_features(
+                per_step,
+                num_layers=1,
+                num_heads=1,
+                dataset_index=0,
+                modes=("residual",),
+                baseline=None,
+                include_segments=False,
+            )
 
     def test_residual_with_partial_baseline_raises(self) -> None:
         """Residual mode with incomplete baseline must raise, not silently use raw."""
