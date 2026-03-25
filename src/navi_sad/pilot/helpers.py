@@ -13,26 +13,18 @@ from collections import defaultdict
 from typing import Any
 
 from navi_sad.core.types import StepRecord
+from navi_sad.pilot.schema import (
+    REVIEW_READONLY_FIELDS,
+    VALID_DISAGREEMENT_CATEGORIES,
+    VALID_LABELS,
+)
 
 # Type alias for guarded statistics (value, reason).
 # (float, None) when valid. (None, "reason string") when invalid.
 GuardedStat = tuple[float | None, str | None]
 
-# Valid disagreement categories (spec section 10).
-DISAGREEMENT_CATEGORIES = frozenset(
-    {
-        "hedging",
-        "contradiction",
-        "partial-match",
-        "off-topic",
-        "format-issue",
-        "scorer-too-strict",
-        "scorer-too-loose",
-    }
-)
-
-# Valid human labels (spec section 2).
-VALID_LABELS = frozenset({"correct", "incorrect", "ambiguous"})
+# Re-export for backwards compatibility with existing test imports.
+DISAGREEMENT_CATEGORIES = VALID_DISAGREEMENT_CATEGORIES
 
 
 def is_word_boundary(char: str) -> bool:
@@ -222,22 +214,6 @@ def find_leading_span_token_count(
 # Analysis guards (Task 2)
 # -------------------------------------------------------------------
 
-# Read-only fields in review.json that must match samples.json exactly.
-_REVIEW_READONLY_FIELDS = (
-    "question",
-    "best_answer",
-    "correct_answers",
-    "incorrect_answers",
-    "rendered_prompt",
-    "generation_text",
-    "generated_token_count",
-    "scorer_label",
-    "scorer_leading_span",
-    "scorer_leading_span_stop_reason",
-    "scorer_matched_correct",
-    "scorer_matched_incorrect",
-)
-
 
 def validate_review_integrity(
     review_data: list[dict[str, Any]],
@@ -322,7 +298,7 @@ def validate_review_integrity(
                 )
 
         # Read-only field drift
-        for field in _REVIEW_READONLY_FIELDS:
+        for field in REVIEW_READONLY_FIELDS:
             in_review = field in r
             in_samples = field in s
             if not in_review and not in_samples:
