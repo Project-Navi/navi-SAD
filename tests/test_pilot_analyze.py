@@ -79,6 +79,29 @@ def _make_review(
 # -------------------------------------------------------------------
 
 
+class TestReviewSchemaRoundTrip:
+    """Verify generated review schema passes its own validator."""
+
+    def test_generated_review_passes_integrity(self) -> None:
+        """A review.json built from the same schema as the generation script
+        must pass validate_review_integrity when human_label is filled."""
+        # Simulate what run_generation() produces
+        sample = _make_sample(42)
+        review = _make_review(42, human_label="correct")
+        # Should not raise — the generated schema must be self-consistent
+        validate_review_integrity([review], [sample])
+
+    def test_all_readonly_fields_present(self) -> None:
+        """Every field in _REVIEW_READONLY_FIELDS must exist in both fixtures."""
+        from navi_sad.pilot.helpers import _REVIEW_READONLY_FIELDS
+
+        sample = _make_sample(0)
+        review = _make_review(0)
+        for field in _REVIEW_READONLY_FIELDS:
+            assert field in sample, f"_make_sample missing field: {field}"
+            assert field in review, f"_make_review missing field: {field}"
+
+
 class TestValidateReviewIntegrity:
     """Tests for review artifact integrity validation."""
 

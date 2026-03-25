@@ -158,7 +158,9 @@ def run_generation(args: argparse.Namespace) -> None:
             rendered = tokenizer.apply_chat_template(
                 messages, add_generation_prompt=True, tokenize=False
             )
-            input_ids = tokenizer(rendered, return_tensors="pt")["input_ids"].to(model.device)
+            input_ids = tokenizer(rendered, return_tensors="pt", add_special_tokens=False)[
+                "input_ids"
+            ].to(model.device)
             assert input_ids.shape[0] == 1, f"Expected B=1, got {input_ids.shape[0]}"
 
             prompt_token_ids = input_ids[0].tolist()
@@ -187,8 +189,12 @@ def run_generation(args: argparse.Namespace) -> None:
             generated_token_count = len(generated_token_ids)
             generation_text = tokenizer.decode(generated_token_ids, **DECODE_KWARGS)
 
-            # Records from instrument
-            records = mgr.get_records()
+            # Records from instrument — filter to exclude any EOS-generating
+            # forward step. The LogitsProcessor increments step_idx after
+            # each forward, so the EOS-producing step can land in records.
+            # Align record boundary with generated_token_count.
+            all_records = mgr.get_records()
+            records = [r for r in all_records if r.step_idx < generated_token_count]
 
             # Leading span + scorer
             span, span_stop_reason = extract_leading_span(generation_text)
@@ -266,6 +272,7 @@ def run_generation(args: argparse.Namespace) -> None:
                 "generated_token_count": generated_token_count,
                 "scorer_label": scorer_label,
                 "scorer_leading_span": span,
+                "scorer_leading_span_stop_reason": span_stop_reason,
                 "scorer_matched_correct": matched_correct,
                 "scorer_matched_incorrect": matched_incorrect,
                 "human_label": "",
@@ -287,7 +294,7 @@ def run_generation(args: argparse.Namespace) -> None:
                 num_tokens_generated=generated_token_count,
                 layers_hooked=list(range(num_layers)),
                 capture_tier="A",
-                per_step=list(mgr.get_records()),
+                per_step=list(records),
                 metadata={
                     "native_dtype": "float16",
                     "instrument_dtype": "float32",
@@ -529,7 +536,10 @@ def _print_cohens_d_summary(
     d_valid = 0
     d_total = num_layers * num_heads
 
+    # Per-layer summary preserving (layer, head) structure
+    layer_summaries: list[str] = []
     for layer in range(num_layers):
+        layer_d_values: list[str] = []
         for head in range(num_heads):
             c_vals = [s[matrix_key][layer][head] for s in correct_samples]
             i_vals = [s[matrix_key][layer][head] for s in incorrect_samples]
@@ -540,11 +550,25 @@ def _print_cohens_d_summary(
                     d_gt_05 += 1
                 if abs(d_val) > 0.3:
                     d_gt_03 += 1
+                layer_d_values.append(f"{d_val:+.3f}")
+            else:
+                layer_d_values.append("null")
+        layer_summaries.append(f"  L{layer:02d}: [{', '.join(layer_d_values)}]")
 
     suffix = " (non-fallback only)" if "leading" in label.lower() else ""
     print(f"\n{label} Cohen's d ({d_valid}/{d_total} valid{suffix}):")
     print(f"  |d| > 0.5: {d_gt_05}")
     print(f"  |d| > 0.3: {d_gt_03}")
+    # Print per-layer breakdown (first 5 + last 5 if many layers)
+    if len(layer_summaries) <= 12:
+        for line in layer_summaries:
+            print(line)
+    else:
+        for line in layer_summaries[:5]:
+            print(line)
+        print(f"  ... ({len(layer_summaries) - 10} layers omitted)")
+        for line in layer_summaries[-5:]:
+            print(line)
 
 
 # -------------------------------------------------------------------
