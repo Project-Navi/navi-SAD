@@ -1,10 +1,15 @@
 """Tests for Gate 3 pilot analysis guards and integrity validation.
 
 Covers: validate_review_integrity, compute_cohens_d,
-compute_confusion_matrix.
+compute_confusion_matrix, invalid-sample filtering, sidecar shape.
 """
 
 from __future__ import annotations
+
+import json
+import subprocess
+import sys
+from pathlib import Path
 
 import pytest
 
@@ -327,3 +332,151 @@ class TestComputeConfusionMatrix:
     def test_empty_inputs(self) -> None:
         result = compute_confusion_matrix([], [])
         assert result["overall_agreement"] == pytest.approx(0.0)
+
+
+# -------------------------------------------------------------------
+# Invalid-sample analysis behavior
+# -------------------------------------------------------------------
+
+
+class TestInvalidSampleAnalysis:
+    """Verify --analyze handles invalid samples consistently."""
+
+    def _make_analysis_artifacts(self, tmp_path: Path) -> tuple[Path, Path]:
+        """Create samples.json + review.json with one valid and one invalid sample."""
+        s_valid = _make_sample(0, scorer_label="correct")
+        s_valid["sample_error"] = None
+        s_valid["full_gen_mean_delta"] = [[0.5, 0.6]]
+        s_valid["per_step"] = [
+            {"step_idx": 0, "layer_idx": 0, "per_head_delta": [0.5, 0.6]},
+        ]
+        s_valid["stop_reason"] = "eos"
+        s_valid["leading_span_fallback"] = False
+        s_valid["scorer_leading_span_stop_reason"] = "eos"
+
+        s_invalid = _make_sample(1, scorer_label="incorrect")
+        s_invalid["sample_error"] = "full_gen_mean_delta: Layer 0 has no records"
+        s_invalid["full_gen_mean_delta"] = None
+        s_invalid["per_step"] = []
+        s_invalid["stop_reason"] = "eos"
+        s_invalid["leading_span_fallback"] = False
+        s_invalid["scorer_leading_span_stop_reason"] = "eos"
+
+        samples_artifact = {
+            "metadata": {"seed": 42, "selected_indices": [0, 1]},
+            "samples": [s_valid, s_invalid],
+        }
+        samples_path = tmp_path / "samples.json"
+        with open(samples_path, "w") as f:
+            json.dump(samples_artifact, f)
+
+        r_valid = _make_review(0, human_label="correct", scorer_label="correct")
+        r_valid["scorer_leading_span_stop_reason"] = "eos"
+
+        r_invalid = _make_review(1, human_label="incorrect", scorer_label="incorrect")
+        r_invalid["scorer_leading_span_stop_reason"] = "eos"
+
+        review_path = tmp_path / "review.json"
+        with open(review_path, "w") as f:
+            json.dump([r_valid, r_invalid], f)
+
+        return samples_path, review_path
+
+    def test_analyze_reports_invalid_count(self, tmp_path: Path) -> None:
+        """--analyze should warn about invalid samples."""
+        _, review_path = self._make_analysis_artifacts(tmp_path)
+        result = subprocess.run(
+            [sys.executable, "scripts/pilot_gate3.py", "--analyze", str(review_path)],
+            capture_output=True,
+            text=True,
+        )
+        assert "1 invalid sample" in result.stdout
+        assert "excluded from ALL analysis" in result.stdout
+
+    def test_analyze_excludes_invalid_from_class_balance(self, tmp_path: Path) -> None:
+        """Invalid samples should not appear in class balance counts."""
+        _, review_path = self._make_analysis_artifacts(tmp_path)
+        result = subprocess.run(
+            [sys.executable, "scripts/pilot_gate3.py", "--analyze", str(review_path)],
+            capture_output=True,
+            text=True,
+        )
+        # Only 1 valid sample (correct), so incorrect count should be 0
+        lines = result.stdout.splitlines()
+        incorrect_lines = [ln for ln in lines if ln.strip().startswith("incorrect:")]
+        assert any("0" in ln for ln in incorrect_lines)
+
+
+# -------------------------------------------------------------------
+# Sidecar output shape
+# -------------------------------------------------------------------
+
+
+class TestSidecarShape:
+    """Verify cohens_d.json sidecar has required fields."""
+
+    def test_sidecar_has_exploratory_note(self, tmp_path: Path) -> None:
+        """cohens_d.json must contain the exploratory disclaimer."""
+        # Build minimal artifacts with enough structure for --analyze
+        s0 = _make_sample(0, scorer_label="correct")
+        s0["sample_error"] = None
+        s0["full_gen_mean_delta"] = [[0.5, 0.6]]
+        s0["leading_span_mean_delta"] = [[0.4, 0.5]]
+        s0["leading_span_fallback"] = False
+        s0["per_step"] = [
+            {"step_idx": 0, "layer_idx": 0, "per_head_delta": [0.5, 0.6]},
+        ]
+        s0["stop_reason"] = "eos"
+        s0["scorer_leading_span_stop_reason"] = "eos"
+
+        s1 = _make_sample(1, scorer_label="incorrect")
+        s1["sample_error"] = None
+        s1["full_gen_mean_delta"] = [[0.7, 0.8]]
+        s1["leading_span_mean_delta"] = [[0.6, 0.7]]
+        s1["leading_span_fallback"] = False
+        s1["per_step"] = [
+            {"step_idx": 0, "layer_idx": 0, "per_head_delta": [0.7, 0.8]},
+        ]
+        s1["stop_reason"] = "eos"
+        s1["scorer_leading_span_stop_reason"] = "eos"
+
+        samples_artifact = {
+            "metadata": {"seed": 42, "selected_indices": [0, 1]},
+            "samples": [s0, s1],
+        }
+        samples_path = tmp_path / "samples.json"
+        with open(samples_path, "w") as f:
+            json.dump(samples_artifact, f)
+
+        r0 = _make_review(0, human_label="correct", scorer_label="correct")
+        r0["scorer_leading_span_stop_reason"] = "eos"
+        r1 = _make_review(
+            1,
+            human_label="incorrect",
+            scorer_label="incorrect",
+            disagreement_category="",
+        )
+        r1["scorer_leading_span_stop_reason"] = "eos"
+
+        review_path = tmp_path / "review.json"
+        with open(review_path, "w") as f:
+            json.dump([r0, r1], f)
+
+        subprocess.run(
+            [sys.executable, "scripts/pilot_gate3.py", "--analyze", str(review_path)],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+
+        d_path = tmp_path / "cohens_d.json"
+        assert d_path.exists()
+        with open(d_path) as f:
+            sidecar = json.load(f)
+
+        assert "exploratory_note" in sidecar
+        assert "EXPLORATORY" in sidecar["exploratory_note"]
+        assert "full_gen_cohens_d" in sidecar
+        assert "leading_span_cohens_d" in sidecar
+        assert "n_correct_full" in sidecar
+        assert "n_incorrect_full" in sidecar
