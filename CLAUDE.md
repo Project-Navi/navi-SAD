@@ -8,54 +8,80 @@ Spectral Attention Divergence (SAD): a research instrument for studying attentio
 
 ## Current State (2026-03-25)
 
-Milestone C complete. Gates 0, 1, 2 pass on Mistral-7B. Gate 3 pilot harness built, pending smoke run. 195 tests (183 CPU + 12 GPU).
+Milestone C complete. Gates 0, 1, 2 pass on Mistral-7B. Gate 3 pilot complete (40 samples, manually labeled). PE feature layer built. 229 tests (217 CPU + 12 GPU).
+
+**Open PR:** #18 (`feat/sad-pe-features`) — PE feature layer + hypothesis revision. Merge before next work.
+
+### Pilot findings (characterization, not evidential)
+
+The 40-sample pilot falsified the naive hypothesis and produced one result worth pursuing:
+
+- **Grand-mean SAD does not separate groups.** 0.006 gap on ~0.30 baseline. Dead.
+- **Per-(layer, head) mean delta has structure.** Leading-span scalar: 294/1024 heads with |d|>0.5. Late layers flip sign.
+- **Per-head PE on first-differenced SAD is the strongest signal.** 338/1024 heads show |d|>0.5 across 3+ (mode, segment) combinations. Directional asymmetry: 4.6:1 positive (correct = more complex dynamics, incorrect = more stereotyped). Cross-mode recurrence across raw, diff, and residual.
+- **Position confound confirmed.** Both groups climb from ~0.24 to ~0.40 over generation. First-differencing removes the trend but signal persists.
+- **Shadow scorer dead.** 10% agreement. Manual labels (3-reviewer majority vote, 92% unanimous) are canonical.
+
+**Hypothesis revised:** SAD is not a truth detector. It may be a confidence-regime correlate. Confabulation detection comes from the mismatch between internal confidence and external correctness.
 
 ### What exists and works
+
 - `core/spectral.py` -- softmax + linear attention (newest-token), GQA expansion, cosine distance
 - `core/hooks.py` -- mock hook manager with GQA-correct reshape, non-interference proof
-- `core/adapter.py` -- MistralAdapter: Tier A forward-replacement with 3 marked insertions (capture, pre-o_proj diagnostic, parity). Verbatim upstream copy from transformers 4.57.x. Runtime version guard. Eager-only hard fail.
-- `core/instrument.py` -- InstrumentManager: orchestrates adapters via registry factory, step accounting via LogitsProcessorList, SAD delta computation, parity mode with ParityConfig.
+- `core/adapter.py` -- MistralAdapter: Tier A forward-replacement with 3 marked insertions. Verbatim upstream copy from transformers 4.57.x. Runtime version guard. Eager-only hard fail.
+- `core/instrument.py` -- InstrumentManager: orchestrates adapters via registry factory, step accounting via LogitsProcessorList, SAD delta computation.
 - `core/registry.py` -- Mistral-only model family registry with `adapter_factory`
 - `core/types.py` -- StepRecord, RawSampleRecord, ModelFamilyConfig, ParityConfig, ParityRecord
-- `signal/types.py` -- OrdinalResult, DerivedSampleRecord dataclasses
-- `signal/ordinal.py` -- Bandt-Pompe ordinal patterns with tie exclusion, PE (D=3), `recommended_min_pe_length` policy threshold
+- `signal/ordinal.py` -- Bandt-Pompe ordinal patterns with tie exclusion, PE (D=3). Generic engine, NOT SAD-specific.
+- `signal/pe_features.py` -- SAD-specific PE wrapper: per-(layer, head) extraction, first-differencing, detrending, segmentation, eligibility gating. Does not modify ordinal.py.
 - `signal/derivatives.py` -- finite differences on delta series
 - `signal/aggregation.py` -- uniform-mean aggregation, fail-closed on step_idx gaps
+- `signal/types.py` -- OrdinalResult, DerivedSampleRecord dataclasses
+- `pilot/schema.py` -- Typed write-side schema: frozen PilotSampleRecord, PilotReviewRecord, PilotMetadata dataclasses with __post_init__ enum validation. Label, DisagreementCategory, StopReason, SpanStopReason enums. Derived REVIEW_READONLY_FIELDS.
+- `pilot/helpers.py` -- extraction, shadow scorer, scalar computation, alignment, integrity validation, guarded Cohen's d, confusion matrix
+- `scripts/pilot_gate3.py` -- generation (40-sample TruthfulQA) + `--analyze` entry points. Incremental artifact persistence, invalid-sample flagging, deterministic CUDA controls.
 - `io/writer.py`, `io/reader.py`, `io/derived.py` -- raw/derived gzipped JSONL split
 - `.github/workflows/ci.yml` -- lint-typecheck + test jobs, uv-first, SHA-pinned, `--locked`
-- `.github/dependabot.yml` -- pip + github-actions, torch major blocked
-- `scripts/calibrate_gate1.py` -- one-off Gate 1 calibration (not CI)
-- `tests/gates/conftest.py` -- GPU fixture: model load with deterministic CUDA controls, revision-pinned
-- `tests/gates/test_gate0_noninterference.py` -- Gate 0: token identity, logit exact match, per-step/per-layer bijection
-- `tests/gates/test_gate1_parity.py` -- Gate 1: frozen cosine + relative L2 thresholds, layer drift invariant
-- `tests/gates/test_gate2_stability.py` -- Gate 2: 50 generations, VRAM stability, provenance round-trip
+- `.pre-commit-config.yaml` -- local pre-commit hooks mirroring CI (ruff check, ruff format, mypy)
+- `AGENTS.md` -- Internal Affairs (Perplexity) auditor prompt
+- `CITATION.cff` -- project citation metadata
 
-### Gate 3 pilot harness (this branch)
-- `src/navi_sad/pilot/helpers.py` -- extraction, shadow scorer, scalar computation, alignment, integrity validation, guarded Cohen's d
-- `scripts/pilot_gate3.py` -- generation (40-sample TruthfulQA) + `--analyze` entry points
-- Shadow scorer `truthfulqa_exact_v1` (pilot-quality, not production)
-- Pending: 5-sample smoke run, then 40-sample pilot run + manual review
+### Pilot artifacts (gitignored, results/)
+
+- `results/pilot_gate3/samples.json` -- 40 samples with per-step per-layer per-head SAD deltas
+- `results/pilot_gate3/review.json` -- 3-reviewer majority-vote labels (28 correct, 9 incorrect, 3 ambiguous)
+- `results/pilot_gate3/raw.jsonl.gz` -- raw JSONL archive
+- `results/pilot_gate3/cohens_d.json` -- per-(layer, head) Cohen's d matrices (exploratory, not evidential)
 
 ### What does NOT exist yet
 
-**Milestone D (remaining after pilot):**
-- Full Gate 3: Head sparsity analysis on TruthfulQA (200 samples, train/val split, per-head Cohen's d with frozen thresholds)
-- Production TruthfulQA scorer (token-based extraction per SPEC.md section 5.6)
+**Next immediate steps (in order):**
+1. Permutation null test on pilot PE data (label-shuffle, preserve class sizes)
+2. Bootstrap/jackknife stability on the 9 incorrect samples
+3. Intersect PE heads with leading-span Cohen's d heads
+4. Logits entropy capture (LogitsProcessor addition, not attention hook change)
+5. Gate 3 spec with confidence-regime framing
+
+**Milestone D (remaining):**
+- Full Gate 3: 200 samples, train/val split, per-head features with multiplicity correction
+- Production TruthfulQA scorer (LLM judge, not string matcher)
 - Analysis module (AUROC, bootstrap CIs)
 - Gate 6: Overhead measurement (informational, not blocking)
 
+**Deferred (from IA audit, post-pilot):**
+- Adapter AST fingerprint check (IA F-04)
+- Linear attention denominator health diagnostics (IA F-11)
+- Full position-aware SAD normalization (IA F-09)
+- per_step typed record (Grumpy F-01 from PR #17)
+
 ## Plans (local only, gitignored)
 
-- `docs/plans/SPEC.md` -- Full instrument design spec (~705 lines). Method definition, precision strategy, hook architecture, capture tiers, verification gates.
-- `docs/plans/PLAN.md` -- Implementation plan v2 (Milestones A-D). Milestones A-C tasks complete. Milestone D tasks remain.
-- `docs/plans/MILESTONE_C_PLAN.md` -- Phase C1-C3 implementation plan. Complete.
-- `docs/plans/PHASE_C4_SPEC.md` -- Phase C4 design spec. Parity extension + Gate 1. Complete.
-- `docs/plans/PHASE_C4_PLAN.md` -- Phase C4 implementation plan. Complete.
-- `docs/plans/GATE2_SPEC.md` -- Gate 2 design spec. Stability + serialization. Complete.
-- `docs/plans/GATE2_PLAN.md` -- Gate 2 implementation plan. Complete.
+- `docs/plans/SPEC.md` -- Full instrument design spec (~705 lines).
+- `docs/plans/PLAN.md` -- Implementation plan v2 (Milestones A-D).
 - `docs/plans/GATE3_PILOT_PLAN.md` -- Gate 3 pilot implementation plan. Implemented (PR #15).
-- `docs/plans/GATE3_PILOT_SPEC.md` -- Gate 3 pilot design spec. Approved (post-audit revision, 2 rounds Grumpy + 2 rounds IA). Implemented.
-- `docs/plans/CI_CD_PROPOSAL.md` -- CI/CD research and proposal. Implemented.
+- `docs/plans/GATE3_PILOT_SPEC.md` -- Gate 3 pilot design spec. Implemented. 2 rounds Grumpy + 2 rounds IA.
+- `docs/audit/IA_RESPONSE_2026-03-25.md` -- Formal IA audit response with dispositions.
+- `docs/audit/SESSION_REPORT_2026-03-25.md` -- Full session report with bugs-caught-by-auditors analysis.
 
 **Read SPEC.md before touching anything.** It contains critical contracts:
 - Step accounting (Forward 0 = token 1, expected records = num_layers * max_new_tokens)
@@ -67,11 +93,11 @@ Milestone C complete. Gates 0, 1, 2 pass on Mistral-7B. Gate 3 pilot harness bui
 
 | Decision | Choice |
 |----------|--------|
-| KV cache | **Off** (method definition; scope limitation — generalization to cache-on inference is unverified) |
+| KV cache | **Off** (method definition; scope limitation -- generalization to cache-on inference is unverified) |
 | Quantization | **q8 minimum, fp16 only for gates** |
 | Precision | **Native dtype inference, fp32 instrument branch** |
 | Capture boundary | **Post-RoPE Q/K/V** (preferred), hidden-state fallback is Tier C |
-| Temporal features | **PE (ordinal, primary) + raw finite differences (supplementary)** |
+| Temporal features | **PE per-(layer, head) on first-differenced SAD trajectories (primary) + raw finite differences (supplementary)**. PE on pooled grand means is dead. |
 | Registry scope | **Mistral only** until cross-family gates pass |
 | Benchmarks | **TruthfulQA generation** only until Gate 3 passes (full 817-question corpus, single split; HuggingFace labels `validation` by convention) |
 | Baselines | **None** until signal validated across architectures |
@@ -79,6 +105,7 @@ Milestone C complete. Gates 0, 1, 2 pass on Mistral-7B. Gate 3 pilot harness bui
 | Transformers | **~=4.57** pinned. Forward-replacement adapter is version-coupled. |
 | Attention impl | **eager only** for instrumented models. Hard fail on non-eager. |
 | Model revision | **Pinned** in gate fixtures. Update only after re-validating gates. |
+| Dataset revision | **Pinned** in pilot script (`741b8276...`). |
 | License | **Apache-2.0** (Copyright Project Navi LLC) |
 
 ## Milestone C: Real Instrumentation (Complete)
@@ -153,9 +180,11 @@ These are not guidelines. They are requirements.
 - `make test-gpu` runs gate tests (requires model)
 - CI enforces: `uv run ruff check`, `uv run ruff format --check`, `uv run mypy`, `uv run pytest`
 - CI uses `uv sync --extra dev --locked` -- stale lockfile fails the build
+- Pre-commit hooks mirror CI: `uv run pre-commit install`
 
 ### Quality
 - Ruff rules: E, F, I, W, B (bugbear), UP (pyupgrade), RUF, C4 (comprehensions)
+- Ruff pinned: `~=0.15.0`. Mypy pinned: `~=1.19.0`. Local and CI must match.
 - Mypy: `check_untyped_defs = true`, per-module `ignore_missing_imports`, `show_error_codes`
 - Stage specific files -- never `git add .` or `git add -A`
 - Commits: `<type>: <description>` (feat, fix, refactor, test, chore, docs)
@@ -165,7 +194,8 @@ These are not guidelines. They are requirements.
 ### Data integrity
 - Raw records are immutable. Derived records are re-generable. No analysis during inference.
 - `aggregate_deltas()` raises on non-contiguous step_idx. No silent zero-fill.
-- PE eligibility is a configurable policy threshold (`recommended_min_pe_length`), not a mathematical law.
+- `compute_mean_delta_matrix()` raises on missing layers. No silent zero-fill.
+- PE eligibility is a configurable policy threshold (`recommended_min_pe_length`), not a mathematical law. SAD-specific wrapper uses 2*D! minimum (stricter).
 
 ### Scope discipline
 - Do not add features, refactoring, or "improvements" beyond what was asked
