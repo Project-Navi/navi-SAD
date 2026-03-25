@@ -293,8 +293,12 @@ def test_provenance_round_trip(gate2_results) -> None:  # type: ignore[no-untype
         reconstructed = StepRecord(**first)
         assert reconstructed.step_idx == first["step_idx"]
 
-        # Delta value range -- catches NaN/Inf/corruption
+        # Delta shape and value range -- catches NaN/Inf/corruption and head count drift
+        num_q_heads = gate2_results["num_q_heads"]
         for s in per_step:
+            assert len(s["per_head_delta"]) == num_q_heads, (
+                f"per_head_delta length {len(s['per_head_delta'])} != {num_q_heads}"
+            )
             for val in s["per_head_delta"]:
                 assert math.isfinite(val), f"Non-finite delta: {val}"
                 assert 0.0 <= val <= 2.0, f"Delta out of range: {val}"
