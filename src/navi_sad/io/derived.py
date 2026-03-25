@@ -41,31 +41,21 @@ def derive_from_raw(
 
             D, tau = 3, 1
             if len(per_token_delta) >= recommended_min_pe_length(D, tau):
-                pe, tie_rate, counts = permutation_entropy(
-                    per_token_delta, D=D, tau=tau
-                )
+                pe, tie_rate, counts = permutation_entropy(per_token_delta, D=D, tau=tau)
                 ordinal = OrdinalResult(
                     pe=pe, tie_rate=tie_rate, pattern_counts=counts, D=D, tau=tau
                 )
             else:
-                ordinal = OrdinalResult(
-                    pe=None, tie_rate=0.0, pattern_counts={}, D=D, tau=tau
-                )
+                ordinal = OrdinalResult(pe=None, tie_rate=0.0, pattern_counts={}, D=D, tau=tau)
 
             dp = derivs["delta_prime"]
             ddp = derivs["delta_double_prime"]
             summary = {
-                "delta_mean": float(np.mean(per_token_delta))
-                if per_token_delta
-                else 0.0,
-                "delta_std": float(np.std(per_token_delta))
-                if per_token_delta
-                else 0.0,
+                "delta_mean": float(np.mean(per_token_delta)) if per_token_delta else 0.0,
+                "delta_std": float(np.std(per_token_delta)) if per_token_delta else 0.0,
                 "delta_prime_mean": float(np.mean(dp)) if dp else 0.0,
                 "delta_prime_max": float(np.max(np.abs(dp))) if dp else 0.0,
-                "delta_double_prime_max": float(np.max(np.abs(ddp)))
-                if ddp
-                else 0.0,
+                "delta_double_prime_max": float(np.max(np.abs(ddp))) if ddp else 0.0,
             }
 
             derived = DerivedSampleRecord(

@@ -41,9 +41,9 @@ class TestSoftmaxLastToken:
     def test_attention_weights_sum_to_one(self) -> None:
         q = _randn((B, H, 1, D))
         k = _randn((B, H, L, D), seed=7)
-        _v = _randn((B, H, L, D), seed=13)  # noqa: F841 — not needed for weight check
+        _v = _randn((B, H, L, D), seed=13)
         # Compute attention weights manually to verify they sum to 1
-        scale = D ** 0.5
+        scale = D**0.5
         scores = torch.matmul(q, k.transpose(-2, -1)) / scale  # [B, H, 1, L]
         weights = torch.softmax(scores, dim=-1)
         sums = weights.sum(dim=-1)  # [B, H, 1]

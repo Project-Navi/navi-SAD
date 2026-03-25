@@ -1,15 +1,18 @@
-.PHONY: test test-gpu lint typecheck all
+.PHONY: test test-gpu lint format typecheck all
 
 test:
-	pytest tests/ -m "not gpu" -v --tb=short
+	uv run pytest tests/ -m "not gpu" -v --tb=short
 
 test-gpu:
-	pytest tests/ -m "gpu" -v --tb=short
+	uv run pytest tests/ -m "gpu" -v --tb=short
 
 lint:
-	ruff check src/
+	uv run ruff check src/ tests/
+
+format:
+	uv run ruff format --check src/ tests/
 
 typecheck:
-	mypy src/
+	uv run mypy src/
 
-all: lint typecheck test
+all: lint format typecheck test

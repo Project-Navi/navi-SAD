@@ -45,21 +45,9 @@ class FakeAttention(nn.Module):
 
     def forward(self, hidden_states: torch.Tensor) -> torch.Tensor:
         B, L, _ = hidden_states.shape
-        q = (
-            self.q_proj(hidden_states)
-            .view(B, L, self.num_heads, self.head_dim)
-            .transpose(1, 2)
-        )
-        k = (
-            self.k_proj(hidden_states)
-            .view(B, L, self.num_heads, self.head_dim)
-            .transpose(1, 2)
-        )
-        v = (
-            self.v_proj(hidden_states)
-            .view(B, L, self.num_heads, self.head_dim)
-            .transpose(1, 2)
-        )
+        q = self.q_proj(hidden_states).view(B, L, self.num_heads, self.head_dim).transpose(1, 2)
+        k = self.k_proj(hidden_states).view(B, L, self.num_heads, self.head_dim).transpose(1, 2)
+        v = self.v_proj(hidden_states).view(B, L, self.num_heads, self.head_dim).transpose(1, 2)
         scores = torch.matmul(q, k.transpose(-2, -1)) / (self.head_dim**0.5)
         weights = torch.softmax(scores, dim=-1)
         attn_out = torch.matmul(weights, v)
@@ -92,21 +80,9 @@ class FakeGQAAttention(nn.Module):
 
     def forward(self, hidden_states: torch.Tensor) -> torch.Tensor:
         B, L, _ = hidden_states.shape
-        q = (
-            self.q_proj(hidden_states)
-            .view(B, L, self.num_heads, self.head_dim)
-            .transpose(1, 2)
-        )
-        k = (
-            self.k_proj(hidden_states)
-            .view(B, L, self.num_kv_heads, self.head_dim)
-            .transpose(1, 2)
-        )
-        v = (
-            self.v_proj(hidden_states)
-            .view(B, L, self.num_kv_heads, self.head_dim)
-            .transpose(1, 2)
-        )
+        q = self.q_proj(hidden_states).view(B, L, self.num_heads, self.head_dim).transpose(1, 2)
+        k = self.k_proj(hidden_states).view(B, L, self.num_kv_heads, self.head_dim).transpose(1, 2)
+        v = self.v_proj(hidden_states).view(B, L, self.num_kv_heads, self.head_dim).transpose(1, 2)
         # GQA expansion
         repeats = self.num_heads // self.num_kv_heads
         k = k.repeat_interleave(repeats, dim=1)
