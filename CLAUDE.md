@@ -6,9 +6,9 @@ Spectral Attention Divergence (SAD): a confabulation detection method. Runs soft
 
 **This is a research harness, not a product. The instrument can lie. Every claim requires evidence.**
 
-## Current State (2026-03-24)
+## Current State (2026-03-25)
 
-Milestone C complete. Gates 0, 1, 2 pass on Mistral-7B. 111 tests (99 CPU + 12 GPU).
+Milestone C complete. Gates 0, 1, 2 pass on Mistral-7B. 119 tests (107 CPU + 12 GPU).
 
 ### What exists and works
 - `core/spectral.py` -- softmax + linear attention (newest-token), GQA expansion, cosine distance
@@ -17,6 +17,7 @@ Milestone C complete. Gates 0, 1, 2 pass on Mistral-7B. 111 tests (99 CPU + 12 G
 - `core/instrument.py` -- InstrumentManager: orchestrates adapters via registry factory, step accounting via LogitsProcessorList, SAD delta computation, parity mode with ParityConfig.
 - `core/registry.py` -- Mistral-only model family registry with `adapter_factory`
 - `core/types.py` -- StepRecord, RawSampleRecord, ModelFamilyConfig, ParityConfig, ParityRecord
+- `signal/types.py` -- OrdinalResult, DerivedSampleRecord dataclasses
 - `signal/ordinal.py` -- Bandt-Pompe ordinal patterns with tie exclusion, PE (D=3), `recommended_min_pe_length` policy threshold
 - `signal/derivatives.py` -- finite differences on delta series
 - `signal/aggregation.py` -- uniform-mean aggregation, fail-closed on step_idx gaps
@@ -40,12 +41,13 @@ Milestone C complete. Gates 0, 1, 2 pass on Mistral-7B. 111 tests (99 CPU + 12 G
 ## Plans (local only, gitignored)
 
 - `docs/plans/SPEC.md` -- Full instrument design spec (~705 lines). Method definition, precision strategy, hook architecture, capture tiers, verification gates.
-- `docs/plans/PLAN.md` -- Implementation plan v2 (Milestones A-D). Tasks 1-8 done.
+- `docs/plans/PLAN.md` -- Implementation plan v2 (Milestones A-D). Milestones A-C tasks complete. Milestone D tasks remain.
 - `docs/plans/MILESTONE_C_PLAN.md` -- Phase C1-C3 implementation plan. Complete.
 - `docs/plans/PHASE_C4_SPEC.md` -- Phase C4 design spec. Parity extension + Gate 1. Complete.
 - `docs/plans/PHASE_C4_PLAN.md` -- Phase C4 implementation plan. Complete.
 - `docs/plans/GATE2_SPEC.md` -- Gate 2 design spec. Stability + serialization. Complete.
 - `docs/plans/GATE2_PLAN.md` -- Gate 2 implementation plan. Complete.
+- `docs/plans/GATE3_PILOT_SPEC.md` -- Gate 3 pilot design spec. Approved, pending implementation.
 - `docs/plans/CI_CD_PROPOSAL.md` -- CI/CD research and proposal. Implemented.
 
 **Read SPEC.md before touching anything.** It contains critical contracts:

@@ -16,7 +16,7 @@ Core hypothesis: when a model confabulates, the divergence between softmax and l
 - **Milestone C:** Complete. Real instrumentation proven on Mistral-7B.
 - **Milestone D (Gates 2-3):** Gate 2 passes. Gate 3 next (TruthfulQA head sparsity).
 
-111 tests (99 CPU + 12 GPU). CI enforces lint, format, typecheck, and test on every PR.
+119 tests (107 CPU + 12 GPU). CI enforces lint, format, typecheck, and test on every PR.
 
 ### Instrument Validation Summary
 
