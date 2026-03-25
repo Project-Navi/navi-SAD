@@ -13,10 +13,18 @@ Core hypothesis: when a model confabulates, the divergence between softmax and l
 ## Current State
 
 - **Milestones A + B:** Complete. Core math, types, I/O, mock hooks, signal processing.
-- **Phases C1-C3:** Complete. MistralAdapter (Tier A forward-replacement), InstrumentManager, Gate 0 passes on Mistral-7B.
-- **Phase C4:** In progress. Parity validation (Gate 1).
+- **Milestone C:** Complete. Real instrumentation proven on Mistral-7B.
+- **Milestone D:** Next. TruthfulQA benchmark runner, memory stability (Gate 2), head sparsity analysis (Gate 3).
 
-97 tests (91 CPU + 6 GPU). CI enforces lint, format, typecheck, and test on every PR.
+109 tests (99 CPU + 10 GPU). CI enforces lint, format, typecheck, and test on every PR.
+
+### Milestone C Findings
+
+The instrument is validated on Mistral-7B-Instruct-v0.2 (fp16, eager attention):
+
+**Gate 0 (Non-interference):** Adapter produces bit-identical tokens and logits under deterministic greedy decoding. Per-step/per-layer record bijection verified. The observer does not perturb the system.
+
+**Gate 1 (Parity):** Recomputed fp32 softmax through native o_proj matches native output. Calibrated across 2240 parity records (32 layers, short + medium sequences). Frozen thresholds: cosine similarity >= 0.999996, relative L2 <= 0.00276. Pre-o_proj diagnostic confirms error is negligible before projection (min cosine 0.99999917). The captured Q/K/V faithfully reproduce the model's attention computation.
 
 ## Scope (Phase 1)
 
@@ -64,7 +72,7 @@ src/navi_sad/
     adapter.py        # MistralAdapter (Tier A forward-replacement capture)
     instrument.py     # InstrumentManager (real model orchestration)
     registry.py       # Model family registry with adapter factory
-    types.py          # StepRecord, RawSampleRecord, ModelFamilyConfig
+    types.py          # StepRecord, RawSampleRecord, ModelFamilyConfig, ParityConfig, ParityRecord
   signal/
     ordinal.py        # Bandt-Pompe ordinal patterns, permutation entropy
     derivatives.py    # Finite differences on delta series
@@ -81,8 +89,8 @@ tests/
 
 | Gate | What | Status |
 |------|------|--------|
-| 0 | Non-interference (identical tokens + logits with/without hooks) | Passes |
-| 1 | Parity (recomputed fp32 softmax through o_proj matches native) | In progress |
+| 0 | Non-interference (identical tokens + logits with/without hooks) | **Passes** |
+| 1 | Parity (recomputed fp32 softmax through o_proj matches native) | **Passes** |
 | 2 | Memory stability (50 generations, no VRAM creep) | Pending |
 | 3 | Head sparsity (200 TruthfulQA samples, Cohen's d) | Pending |
 
