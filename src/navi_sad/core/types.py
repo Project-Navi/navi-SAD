@@ -1,8 +1,15 @@
 """Core data types for navi-SAD instrument."""
 
+from __future__ import annotations
+
+from collections.abc import Callable
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
 import torch
+
+if TYPE_CHECKING:
+    from navi_sad.core.adapter import MistralAdapter
 
 
 @dataclass
@@ -59,3 +66,4 @@ class ModelFamilyConfig:
     head_dim_attr: str
     gqa_expansion: bool
     notes: str = ""
+    adapter_factory: Callable[[], MistralAdapter] | None = None

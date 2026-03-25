@@ -45,6 +45,16 @@ class TestMistralLookup:
         result = get_family_config(config)
         assert result.gqa_expansion is True
 
+    def test_mistral_has_adapter_factory(self) -> None:
+        """Mistral registry entry includes a callable adapter factory."""
+        from navi_sad.core.adapter import MistralAdapter
+
+        config = _mock_config(["MistralForCausalLM"])
+        result = get_family_config(config)
+        assert result.adapter_factory is not None
+        instance = result.adapter_factory()
+        assert isinstance(instance, MistralAdapter)
+
 
 # ===========================================================================
 # TestNotRegistered — Phase 1 scope enforcement
