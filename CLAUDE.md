@@ -2,7 +2,9 @@
 
 ## What This Is
 
-Spectral Attention Divergence (SAD): a research instrument for studying attention dynamics during LLM generation. Runs softmax and linear attention in parallel on the same weights, measures per-head cosine divergence, tracks temporal dynamics via ordinal patterns (permutation entropy). SAD may be an internal correlate of confidence-like inference dynamics; its value for confabulation detection would come from identifying regimes where internal confidence decouples from external correctness.
+Spectral Attention Divergence (SAD): a research instrument for studying attention dynamics during LLM generation. Runs softmax and linear attention in parallel on the same weights, measures per-head cosine divergence, and reconstructs internal dynamics via delay-coordinate embedding (permutation entropy).
+
+**Takens' embedding framing:** Each per-head SAD trajectory is a delay-coordinate embedding of the model's internal dynamical state. We are not measuring a signal — we are reconstructing an attractor. PE is load-bearing: Bandt-Pompe ordinal patterns are designed for delay-coordinate reconstructions. The instrument is hypothesis-agnostic — it reconstructs dynamical structure. Confabulation detection remains one application (attractor collapse correlating with incorrect generation), but the instrument can characterize any regime that leaves a signature in per-head attention dynamics.
 
 **This is a research harness, not a product. The instrument can lie. Every claim requires evidence.**
 
@@ -22,7 +24,7 @@ The 40-sample pilot falsified the naive hypothesis and produced one result worth
 - **Position confound confirmed.** Both groups climb from ~0.24 to ~0.40 over generation. First-differencing removes the trend but signal persists.
 - **Shadow scorer dead.** 10% agreement. Manual labels (3-reviewer majority vote, 92% unanimous) are canonical.
 
-**Hypothesis revised:** SAD is not a truth detector. It may be a confidence-regime correlate. Confabulation detection comes from the mismatch between internal confidence and external correctness.
+**Hypothesis revised:** SAD is not a truth detector. It is a dynamical systems probe. The instrument reconstructs per-head attractor structure; confabulation detection (attractor collapse correlating with incorrect generation) is the first application, not the mission. The permutation null test asks whether the reconstructed attractor structure is real, not whether it detects confabulation specifically.
 
 ### What exists and works
 

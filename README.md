@@ -1,20 +1,24 @@
 # navi-SAD (Spectral Attention Divergence)
 
-Research harness for confabulation detection via dual-path attention comparison. Runs softmax and linear attention in parallel on the same post-RoPE Q/K/V tensors, measures per-head cosine divergence, and tracks temporal dynamics via ordinal patterns (permutation entropy).
+A dynamical systems probe for LLM inference. Runs softmax and linear attention in parallel on the same post-RoPE Q/K/V tensors, measures per-head cosine divergence, and reconstructs the model's internal attractor via delay-coordinate embedding (permutation entropy).
+
+Confabulation detection remains one needle in the token-stack we are looking for, but it is no longer the only one. The instrument is hypothesis-agnostic -- it reconstructs dynamical structure. What you ask about that structure is a separate question.
 
 **This is a research harness, not a product. The instrument can lie. Every claim requires evidence.**
 
 ## Method
 
-SAD captures post-RoPE Q/K/V tensors from inside the model's native attention forward, then recomputes both softmax and linear attention in fp32. The cosine distance between per-head outputs is the core signal. Temporal dynamics are tracked via Bandt-Pompe ordinal patterns (permutation entropy) and finite differences on the per-token delta series.
+SAD captures post-RoPE Q/K/V tensors from inside the model's native attention forward, then recomputes both softmax and linear attention in fp32. The cosine distance between per-head outputs produces a scalar trajectory over generation steps -- one time series per (layer, head) pair.
 
-Core hypothesis: SAD may be an internal correlate of confidence-like inference dynamics, not a direct truth signal. Its value for confabulation detection would then come from identifying regimes where internal confidence decouples from external correctness. When softmax and linear attention agree (low divergence), the model operates in a regime where even the weaker mechanism suffices -- potentially indicating smooth, high-confidence inference that may or may not be factually grounded.
+**Theoretical framing (Takens' embedding):** Each per-head SAD trajectory is treated as a delay-coordinate embedding of the model's internal dynamical state, following Takens' embedding theorem. We are not measuring a signal -- we are reconstructing an attractor. Permutation entropy is not a generic complexity heuristic here; it is load-bearing. Bandt-Pompe ordinal patterns are designed for exactly this: characterizing the ordinal structure of delay-coordinate reconstructions. When the attractor collapses (stereotyped dynamics, low PE), the model's internal state has lost the complex structure that characterizes one inference regime. When the attractor is rich (high PE, diverse ordinal patterns), the dynamics retain a different kind of structure. The per-head SAD trajectory is the observable; the attractor reconstruction is the instrument; PE on that reconstruction is the measurement.
+
+**What the instrument can see:** Any regime that leaves a signature in per-head attention dynamics -- confidence, uncertainty, confabulation, creativity, rote retrieval, domain shifts, phase transitions during long-form generation. The first application is confabulation detection (TruthfulQA, correct vs incorrect attractor geometry), but the instrument does not hard-code that question.
 
 **Scope limitation:** SAD is currently measured under cache-off conditions (`use_cache=False`), which forces full-prefix recomputation at each generation step. Generalization to cache-on (production) inference is unverified and remains a scope limitation.
 
 ## Research Grounding
 
-The SAD hypothesis is theoretically motivated and adjacent-literature-grounded, but not yet directly validated by repository evidence. Gates 0-2 validate the **instrument**; Gate 3 begins testing the **hypothesis**. The 40-sample pilot (completed) showed that grand-mean SAD does not separate correct from incorrect generations, but per-(layer, head) structure and temporal dynamics remain open candidates.
+The SAD instrument is theoretically motivated and adjacent-literature-grounded, but the attractor-reconstruction claim is not yet directly validated by repository evidence. Gates 0-2 validate the **instrument** (non-interference, parity, stability). Gate 3 tests whether the **reconstructed attractor carries information** -- starting with confabulation-relevant regimes but applicable to any labeled binary partition. The 40-sample pilot (completed) showed that grand-mean SAD does not separate correct from incorrect generations, but per-(layer, head) attractor structure and temporal dynamics remain open candidates.
 
 **Theoretical basis -- softmax/linear capacity gap:**
 Han et al. (2024, arXiv:2412.06590) prove that softmax attention is injective (different queries produce different distributions) while linear attention is not (distinct queries can collapse to identical outputs). This capacity gap is the structural basis for using softmax-linear divergence as a diagnostic. SAD does not claim that divergence directly measures truth -- it measures how much the model relies on its full nonlinear attention capacity versus operating in a regime where the weaker linear mechanism suffices.
@@ -25,9 +29,9 @@ Han et al. (2024, arXiv:2412.06590) prove that softmax attention is injective (d
 - Neural Uncertainty Principle (arXiv:2603.19562, 2026): formalizes that weak prompt-gradient coupling indicates hallucination risk.
 - Verbal uncertainty mismatch (EMNLP 2025, arXiv:2503.14477): the gap between high semantic uncertainty and low verbal uncertainty predicts hallucinations -- LLMs are overconfident when hallucinating.
 
-**What is novel:** No published method runs two attention mechanisms in parallel on the same frozen weights as a confabulation detector. SAD combines known ingredients (linear attention, cosine divergence, ordinal patterns) in a new configuration.
+**What is novel:** No published method runs two attention mechanisms in parallel on the same frozen weights as a dynamical systems probe. SAD combines known ingredients (linear attention, cosine divergence, delay-coordinate embedding via ordinal patterns) in a new configuration. The Takens framing -- treating per-head SAD as an attractor reconstruction rather than a scalar diagnostic -- is the theoretical contribution.
 
-**What is not yet proven:** That SAD's per-head temporal dynamics carry information about confabulation-relevant regimes rather than reflecting other sources of variation (prompt complexity, sequence length, topic domain). The pilot showed the grand-mean signal washes out; the open question is whether structured per-(layer, head) features -- particularly PE on first-differenced trajectories -- can detect when internal confidence decouples from external correctness. Gate 3 is the first empirical test.
+**What is not yet proven:** That the reconstructed attractors carry information about inference regimes rather than reflecting other sources of variation (prompt complexity, sequence length, topic domain). The pilot showed the grand-mean signal washes out; the open question is whether structured per-(layer, head) attractor features -- particularly PE on first-differenced trajectories -- distinguish meaningfully different dynamical regimes. Gate 3 is the first empirical test, using confabulation (TruthfulQA correct/incorrect) as the initial regime partition.
 
 ## Current State
 
