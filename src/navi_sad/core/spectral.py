@@ -93,6 +93,10 @@ def expand_kv_heads(kv: torch.Tensor, num_q_heads: int) -> torch.Tensor:
     if num_kv_heads == num_q_heads:
         return kv
 
+    if num_q_heads % num_kv_heads != 0:
+        raise ValueError(
+            f"num_q_heads ({num_q_heads}) must be divisible by num_kv_heads ({num_kv_heads})"
+        )
     repeats = num_q_heads // num_kv_heads
     return kv.repeat_interleave(repeats, dim=1)
 

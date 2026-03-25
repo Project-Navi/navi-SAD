@@ -13,6 +13,7 @@ dependencies = [
     "transformers~=4.57",
     "numpy>=1.24.0",
     "accelerate>=1.13.0",
+    "packaging>=21.0",
 ]
 
 [project.optional-dependencies]

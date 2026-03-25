@@ -97,6 +97,14 @@ class TestGQAExpansion:
         assert expanded.shape == (B, 8, L, D)
         assert torch.equal(expanded, kv)
 
+    def test_non_divisible_raises(self) -> None:
+        """Non-divisible head counts raise ValueError, not silent wrong result."""
+        import pytest
+
+        kv = _randn((B, 3, L, D))
+        with pytest.raises(ValueError, match="divisible"):
+            expand_kv_heads(kv, num_q_heads=8)
+
 
 # ===========================================================================
 # TestCosineDistance

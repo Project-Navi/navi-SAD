@@ -122,9 +122,8 @@ class InstrumentManager:
         ) -> None:
             with torch.no_grad():
                 # Single-sequence only (no padding support)
-                assert native_output.shape[0] == 1, (
-                    f"Parity requires B=1, got {native_output.shape[0]}"
-                )
+                if native_output.shape[0] != 1:
+                    raise ValueError(f"Parity requires B=1, got {native_output.shape[0]}")
 
                 # Determine native dtype before upcasting
                 native_dtype = native_output.dtype

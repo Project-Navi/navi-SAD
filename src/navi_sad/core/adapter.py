@@ -183,9 +183,10 @@ class MistralAdapter:
 
             # === SAD INSERTION 2: parity capture (Gate 1 only) ===
             if parity_fn is not None:
-                assert past_key_values is None, (
-                    "Parity mode requires use_cache=False. Cache-on parity is not validated."
-                )
+                if past_key_values is not None:
+                    raise RuntimeError(
+                        "Parity mode requires use_cache=False. Cache-on parity is not validated."
+                    )
                 parity_fn(
                     query_states=query_states,
                     key_states=key_states,
