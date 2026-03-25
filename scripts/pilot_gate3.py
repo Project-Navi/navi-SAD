@@ -96,12 +96,21 @@ def run_generation(args: argparse.Namespace) -> None:
     # ---------------------------------------------------------------
     # Model + tokenizer
     # ---------------------------------------------------------------
+    # Deterministic CUDA controls — same as gate fixtures.
+    torch.backends.cudnn.deterministic = True  # type: ignore[attr-defined]
+    torch.backends.cudnn.benchmark = False  # type: ignore[attr-defined]
+    torch.manual_seed(0)
+    torch.cuda.manual_seed_all(0)
+
     logger.info("Loading model %s (revision=%s)...", MODEL_ID, REVISION[:12])
     tokenizer = AutoTokenizer.from_pretrained(MODEL_ID, revision=REVISION)
+    if tokenizer.pad_token_id is None:
+        tokenizer.pad_token_id = tokenizer.eos_token_id
+
     model = AutoModelForCausalLM.from_pretrained(
         MODEL_ID,
         revision=REVISION,
-        torch_dtype=torch.float16,
+        dtype=torch.float16,
         device_map="cuda",
         attn_implementation="eager",
     )
@@ -183,19 +192,22 @@ def run_generation(args: argparse.Namespace) -> None:
             rendered = tokenizer.apply_chat_template(
                 messages, add_generation_prompt=True, tokenize=False
             )
-            input_ids = tokenizer(rendered, return_tensors="pt", add_special_tokens=False)[
-                "input_ids"
-            ].to(model.device)
+            tokenized = tokenizer(rendered, return_tensors="pt", add_special_tokens=False)
+            input_ids = tokenized["input_ids"].to(model.device)
+            attention_mask = torch.ones_like(input_ids)
             assert input_ids.shape[0] == 1, f"Expected B=1, got {input_ids.shape[0]}"
 
             prompt_token_ids = input_ids[0].tolist()
             prompt_length = len(prompt_token_ids)
 
-            # Generate
+            # Generate with explicit attention_mask and pad_token_id
+            # to suppress HuggingFace warnings and make the contract clear.
             mgr.reset()
             with torch.no_grad():
                 output = model.generate(
                     input_ids,
+                    attention_mask=attention_mask,
+                    pad_token_id=tokenizer.pad_token_id,
                     max_new_tokens=MAX_NEW_TOKENS,
                     do_sample=False,
                     use_cache=False,
