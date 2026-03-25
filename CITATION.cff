@@ -1,0 +1,73 @@
+cff-version: 1.2.0
+title: "navi-SAD: Spectral Attention Divergence"
+message: >-
+  If you use this software in your research, please cite it
+  using the metadata from this file.
+type: software
+authors:
+  - given-names: Nelson
+    family-names: Spence
+    affiliation: Project Navi LLC
+repository-code: "https://github.com/Project-Navi/navi-SAD"
+license: Apache-2.0
+version: 0.1.0
+date-released: "2026-03-25"
+abstract: >-
+  Research harness for confabulation detection via dual-path
+  attention comparison. Runs softmax and linear attention in
+  parallel on the same post-RoPE Q/K/V tensors from frozen
+  language model weights, measures per-head cosine divergence,
+  and tracks temporal dynamics via Bandt-Pompe ordinal patterns.
+  Exploits the theoretical capacity gap between injective softmax
+  attention and non-injective linear attention (Han et al., 2024)
+  as a diagnostic signal for when models operate in low-discrimination
+  regimes associated with confabulation.
+keywords:
+  - confabulation detection
+  - hallucination detection
+  - attention mechanisms
+  - linear attention
+  - spectral analysis
+  - permutation entropy
+  - large language models
+references:
+  - type: article
+    title: >-
+      On the Capacity Gap between Softmax and Linear Attention
+    authors:
+      - family-names: Han
+        given-names: Yuxiang
+      - family-names: Xie
+        given-names: Liang
+      - family-names: Wu
+        given-names: Jingfeng
+    year: 2024
+    identifiers:
+      - type: other
+        value: "arXiv:2412.06590"
+  - type: article
+    title: >-
+      Transformers are RNNs: Fast Autoregressive Transformers
+      with Linear Attention
+    authors:
+      - family-names: Katharopoulos
+        given-names: Angelos
+      - family-names: Vyas
+        given-names: Apoorv
+      - family-names: Pappas
+        given-names: Nikolaos
+      - family-names: Fleuret
+        given-names: "Fran\\xe7ois"
+    year: 2020
+    collection-title: "Proceedings of ICML 2020"
+  - type: article
+    title: "TruthfulQA: Measuring How Models Mimic Human Falsehoods"
+    authors:
+      - family-names: Lin
+        given-names: Stephanie
+      - family-names: Hilton
+        given-names: Jacob
+      - family-names: Evans
+        given-names: Owain
+    year: 2022
+    collection-title: "Proceedings of ACL 2022"
