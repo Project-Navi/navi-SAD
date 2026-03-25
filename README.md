@@ -10,13 +10,32 @@ SAD captures post-RoPE Q/K/V tensors from inside the model's native attention fo
 
 Core hypothesis: when a model confabulates, the divergence between softmax and linear attention flatlines -- the model stops recruiting nonlinear attention capacity and coasts on smooth probabilistic flow.
 
+**Scope limitation:** SAD is currently measured under cache-off conditions (`use_cache=False`), which forces full-prefix recomputation at each generation step. Generalization to cache-on (production) inference is unverified and remains a scope limitation.
+
+## Research Grounding
+
+The SAD hypothesis is theoretically motivated and adjacent-literature-grounded, but not yet directly validated by repository evidence. Gates 0-2 validate the **instrument**; Gate 3 begins testing the **hypothesis**.
+
+**Theoretical basis -- softmax/linear capacity gap:**
+Han et al. (2024, arXiv:2412.06590) prove that softmax attention is injective (different queries produce different distributions) while linear attention is not (distinct queries can collapse to identical outputs). This capacity gap is the structural basis for using softmax-linear divergence as a diagnostic: when the two mechanisms agree, the model operates in a regime where even the weaker mechanism suffices.
+
+**Adjacent empirical motifs:**
+- D2HScore (Ding et al., 2025): low dispersion and drift in internal representations characterize hallucinated content.
+- EigenTrack (arXiv:2509.15735, 2025): hallucinated sequences produce flatter, more dispersed attention spectra closer to the noise baseline.
+- Neural Uncertainty Principle (arXiv:2603.19562, 2026): formalizes that weak prompt-gradient coupling indicates hallucination risk.
+- Verbal uncertainty mismatch (EMNLP 2025, arXiv:2503.14477): the gap between high semantic uncertainty and low verbal uncertainty predicts hallucinations -- LLMs are overconfident when hallucinating.
+
+**What is novel:** No published method runs two attention mechanisms in parallel on the same frozen weights as a confabulation detector. SAD combines known ingredients (linear attention, cosine divergence, ordinal patterns) in a new configuration.
+
+**What is not yet proven:** That the observed SAD signal (softmax-linear cosine distance) carries information about confabulation rather than reflecting other sources of variation (prompt complexity, sequence length, topic domain). Gate 3 is the first empirical test of this claim.
+
 ## Current State
 
 - **Milestones A + B:** Complete. Core math, types, I/O, mock hooks, signal processing.
 - **Milestone C:** Complete. Real instrumentation proven on Mistral-7B.
-- **Milestone D (Gates 2-3):** Gate 2 passes. Gate 3 next (TruthfulQA head sparsity).
+- **Milestone D (Gates 2-3):** Gate 2 passes. Gate 3 pilot harness built, pending smoke run. TruthfulQA full corpus (817 questions, single split; HuggingFace labels this `validation` by convention).
 
-119 tests (107 CPU + 12 GPU). CI enforces lint, format, typecheck, and test on every PR.
+195 tests (183 CPU + 12 GPU). CI enforces lint, format, typecheck, and test on every PR.
 
 ### Instrument Validation Summary
 
@@ -89,12 +108,19 @@ tests/
 
 ## Verification Gates
 
+### Instrument validation (proven)
+
 | Gate | What | Status |
 |------|------|--------|
 | 0 | Non-interference (identical tokens + logits with/without hooks) | **Passes** |
 | 1 | Parity (recomputed fp32 softmax through o_proj matches native) | **Passes** |
 | 2 | Memory stability (50 generations, no VRAM creep) | **Passes** |
-| 3 | Head sparsity (200 TruthfulQA samples, Cohen's d) | Pending |
+
+### Hypothesis validation (in progress)
+
+| Gate | What | Status |
+|------|------|--------|
+| 3 | Head sparsity (TruthfulQA, per-head Cohen's d) | Pilot pending |
 
 ## License
 

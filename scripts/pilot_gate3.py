@@ -51,6 +51,7 @@ REVISION = "63a8b081895390a26e140280378bc85ec8bce07a"
 SEED = 42
 DEFAULT_SAMPLE_COUNT = 40
 MAX_NEW_TOKENS = 256
+DATASET_REVISION = "741b8276f2d1982aa3d5b832d3ee81ed3b896490"
 DECODE_KWARGS: dict[str, Any] = {
     "skip_special_tokens": True,
     "clean_up_tokenization_spaces": False,
@@ -72,8 +73,10 @@ def run_generation(args: argparse.Namespace) -> None:
     # ---------------------------------------------------------------
     # Dataset
     # ---------------------------------------------------------------
-    logger.info("Loading TruthfulQA dataset...")
-    dataset = ds.load_dataset("truthful_qa", "generation", split="validation")
+    logger.info("Loading TruthfulQA dataset (revision=%s)...", DATASET_REVISION[:12])
+    dataset = ds.load_dataset(
+        "truthful_qa", "generation", split="validation", revision=DATASET_REVISION
+    )
     rng = random.Random(SEED)
     selected_indices = sorted(rng.sample(range(len(dataset)), args.sample_count))
     logger.info(
@@ -127,7 +130,9 @@ def run_generation(args: argparse.Namespace) -> None:
         "burned_indices": selected_indices,
         "dataset_name": "truthful_qa",
         "dataset_config": "generation",
-        "dataset_split": "validation",
+        "dataset_split": "validation (HuggingFace convention; TruthfulQA is a single "
+        "817-question corpus with no train/test partition in the original design)",
+        "dataset_revision": DATASET_REVISION,
         "datasets_version": ds.__version__,
         "dataset_fingerprint": getattr(dataset, "_fingerprint", None),
         "model_id": MODEL_ID,
@@ -145,9 +150,23 @@ def run_generation(args: argparse.Namespace) -> None:
     # ---------------------------------------------------------------
     samples: list[dict[str, Any]] = []
     reviews: list[dict[str, Any]] = []
+    invalid_samples: list[int] = []
     eos_token_id = tokenizer.eos_token_id
 
+    # Incremental artifact paths — written per-sample so partial
+    # results survive if the loop fails on a later sample.
+    samples_path = output_dir / "samples.json"
+    review_path = output_dir / "review.json"
     raw_path = output_dir / "raw.jsonl.gz"
+
+    def _flush_artifacts() -> None:
+        """Write current accumulated samples and reviews to disk."""
+        samples_artifact = {"metadata": pilot_metadata, "samples": samples}
+        with open(samples_path, "w", encoding="utf-8") as f:
+            json.dump(samples_artifact, f, indent=2, ensure_ascii=False)
+        with open(review_path, "w", encoding="utf-8") as f:
+            json.dump(reviews, f, indent=2, ensure_ascii=False)
+
     with RawRecordWriter(raw_path) as raw_writer:
         for i, dataset_idx in enumerate(selected_indices):
             t0 = time.monotonic()
@@ -214,14 +233,31 @@ def run_generation(args: argparse.Namespace) -> None:
                 ls_count = 0
                 ls_fallback = False
 
-            # Scalar matrices
-            full_gen_matrix = compute_mean_delta_matrix(records, num_layers, num_q_heads)
-            if ls_count > 0:
-                leading_span_matrix = compute_mean_delta_matrix(
-                    records, num_layers, num_q_heads, max_step=ls_count
-                )
-            else:
+            # Scalar matrices — catch instrument errors per IA F-08.
+            # Do not silently coerce failures into None; mark the sample
+            # as invalid so the run summary reports the failure.
+            sample_error: str | None = None
+            try:
+                full_gen_matrix = compute_mean_delta_matrix(records, num_layers, num_q_heads)
+            except ValueError as e:
+                full_gen_matrix = None
+                sample_error = f"full_gen_mean_delta: {e}"
+                logger.error("Sample %d: %s", dataset_idx, sample_error)
+
+            try:
+                if ls_count > 0 and sample_error is None:
+                    leading_span_matrix = compute_mean_delta_matrix(
+                        records, num_layers, num_q_heads, max_step=ls_count
+                    )
+                else:
+                    leading_span_matrix = None
+            except ValueError as e:
                 leading_span_matrix = None
+                sample_error = f"leading_span_mean_delta: {e}"
+                logger.error("Sample %d: %s", dataset_idx, sample_error)
+
+            if sample_error is not None:
+                invalid_samples.append(dataset_idx)
 
             # Build per-step list for artifact
             per_step = [
@@ -257,6 +293,7 @@ def run_generation(args: argparse.Namespace) -> None:
                 "scorer_leading_span_stop_reason": span_stop_reason,
                 "scorer_matched_correct": matched_correct,
                 "scorer_matched_incorrect": matched_incorrect,
+                "sample_error": sample_error,
             }
             samples.append(sample)
 
@@ -310,35 +347,40 @@ def run_generation(args: argparse.Namespace) -> None:
             )
             raw_writer.write(raw_record)
 
+            # Flush JSON artifacts incrementally so partial results
+            # survive if a later sample crashes the run.
+            _flush_artifacts()
+
             elapsed = time.monotonic() - t0
             logger.info(
-                "[%d/%d] idx=%d tokens=%d stop=%s scorer=%s (%.1fs) %s",
+                "[%d/%d] idx=%d tokens=%d stop=%s scorer=%s%s (%.1fs) %s",
                 i + 1,
                 len(selected_indices),
                 dataset_idx,
                 generated_token_count,
                 stop_reason,
                 scorer_label,
+                " INVALID" if sample_error else "",
                 elapsed,
                 row["question"][:60],
             )
 
     # ---------------------------------------------------------------
-    # Write artifacts
+    # Final summary
     # ---------------------------------------------------------------
-    samples_path = output_dir / "samples.json"
-    review_path = output_dir / "review.json"
-
-    samples_artifact = {"metadata": pilot_metadata, "samples": samples}
-    with open(samples_path, "w", encoding="utf-8") as f:
-        json.dump(samples_artifact, f, indent=2, ensure_ascii=False)
     logger.info("Wrote %s (%d samples)", samples_path, len(samples))
-
-    with open(review_path, "w", encoding="utf-8") as f:
-        json.dump(reviews, f, indent=2, ensure_ascii=False)
     logger.info("Wrote %s (%d samples)", review_path, len(reviews))
-
     logger.info("Wrote %s", raw_path)
+
+    if invalid_samples:
+        logger.error(
+            "FAIL: %d invalid sample(s) due to instrument errors: %s",
+            len(invalid_samples),
+            invalid_samples,
+        )
+        logger.error("Review sample_error fields before proceeding.")
+        sys.exit(1)
+
     logger.info("Generation complete. Proceed to manual review protocol.")
 
 
@@ -482,7 +524,11 @@ def run_analysis(args: argparse.Namespace) -> None:
     # ---------------------------------------------------------------
     # Exploratory effect sizes
     # ---------------------------------------------------------------
-    print("=== Exploratory Effect Sizes (not frozen) ===")
+    print("=== Exploratory Effect Sizes ===")
+    print("NOTE: All d-values below are EXPLORATORY -- NOT EVIDENTIAL.")
+    print("This pilot is underpowered for stable per-head inference.")
+    print("Do not use these values to set frozen thresholds or publish claims.")
+    print()
 
     correct_full: list[dict[str, Any]] = []
     incorrect_full: list[dict[str, Any]] = []
@@ -492,6 +538,8 @@ def run_analysis(args: argparse.Namespace) -> None:
     for r in review_data:
         s = samples_by_idx[r["dataset_index"]]
         hl = r["human_label"]
+        if s.get("sample_error") is not None:
+            continue  # skip invalid samples
         if hl == "correct":
             if s.get("full_gen_mean_delta") is not None:
                 correct_full.append(s)
@@ -513,6 +561,12 @@ def run_analysis(args: argparse.Namespace) -> None:
         f"{len(incorrect_leading)} incorrect"
     )
 
+    # Reference distribution: correct-sample SAD summary (IA F-01 condition)
+    if correct_full:
+        _print_group_sad_summary("Correct (reference)", correct_full, "full_gen_mean_delta")
+    if incorrect_full:
+        _print_group_sad_summary("Incorrect", incorrect_full, "full_gen_mean_delta")
+
     full_gen_d = _compute_cohens_d_matrix(correct_full, incorrect_full, "full_gen_mean_delta")
     leading_span_d = _compute_cohens_d_matrix(
         correct_leading, incorrect_leading, "leading_span_mean_delta"
@@ -523,6 +577,8 @@ def run_analysis(args: argparse.Namespace) -> None:
 
     # Write full d matrices to sidecar file
     d_sidecar = {
+        "exploratory_note": "These d-values are EXPLORATORY, not evidential. "
+        "Do not use to set frozen thresholds or publish claims.",
         "full_gen_cohens_d": full_gen_d,
         "leading_span_cohens_d": leading_span_d,
         "n_correct_full": len(correct_full),
@@ -534,6 +590,17 @@ def run_analysis(args: argparse.Namespace) -> None:
     with open(d_path, "w", encoding="utf-8") as f:
         json.dump(d_sidecar, f, indent=2)
     print(f"\nFull d matrices written to {d_path}")
+
+    # ---------------------------------------------------------------
+    # Position-stratified SAD (IA F-09 condition)
+    # ---------------------------------------------------------------
+    print()
+    print("=== Position-Stratified SAD Deltas ===")
+    print("SAD deltas are NOT prefix-length-normalized. Linear attention's")
+    print("denominator grows with prefix length; interpret position trends")
+    print("with caution.")
+    print()
+    _print_position_stratified_sad(correct_full, incorrect_full, samples_by_idx, review_data)
     print()
 
 
@@ -606,6 +673,92 @@ def _print_cohens_d_summary(
             print(line)
 
 
+def _print_group_sad_summary(
+    label: str,
+    group_samples: list[dict[str, Any]],
+    matrix_key: str,
+) -> None:
+    """Print per-group SAD summary statistics (mean of mean-delta across all layer-heads)."""
+    grand_means: list[float] = []
+    for s in group_samples:
+        matrix = s.get(matrix_key)
+        if matrix is None:
+            continue
+        all_vals = [v for row in matrix for v in row]
+        if all_vals:
+            grand_means.append(sum(all_vals) / len(all_vals))
+    if not grand_means:
+        print(f"\n{label} SAD summary: no valid samples")
+        return
+    mean_val = sum(grand_means) / len(grand_means)
+    min_val = min(grand_means)
+    max_val = max(grand_means)
+    print(f"\n{label} SAD (grand mean of mean-delta, n={len(grand_means)}):")
+    print(f"  mean={mean_val:.4f}, min={min_val:.4f}, max={max_val:.4f}")
+
+
+def _print_position_stratified_sad(
+    correct_samples: list[dict[str, Any]],
+    incorrect_samples: list[dict[str, Any]],
+    samples_by_idx: dict[int, dict[str, Any]],
+    review_data: list[dict[str, Any]],
+) -> None:
+    """Print SAD delta by generation position, grouped by human label.
+
+    Shows mean delta (averaged across all layers and heads) at each
+    step_idx position, for correct and incorrect groups separately.
+    This reveals whether SAD has a structural position trend
+    (e.g., from linear attention denominator growth).
+    """
+    # Collect per-step mean deltas by label group
+    correct_by_step: dict[int, list[float]] = {}
+    incorrect_by_step: dict[int, list[float]] = {}
+
+    for group, step_dict in [
+        (correct_samples, correct_by_step),
+        (incorrect_samples, incorrect_by_step),
+    ]:
+        for s in group:
+            per_step = s.get("per_step", [])
+            for rec in per_step:
+                step = rec["step_idx"]
+                deltas = rec["per_head_delta"]
+                mean_delta = sum(deltas) / len(deltas) if deltas else 0.0
+                step_dict.setdefault(step, []).append(mean_delta)
+
+    if not correct_by_step and not incorrect_by_step:
+        print("No per-step data available for position analysis.")
+        return
+
+    all_steps = sorted(set(correct_by_step.keys()) | set(incorrect_by_step.keys()))
+
+    # Print summary at key positions (early, mid, late)
+    positions = []
+    if len(all_steps) >= 1:
+        positions.append(("early (step 0)", all_steps[0]))
+    if len(all_steps) >= 5:
+        mid = all_steps[len(all_steps) // 2]
+        positions.append((f"mid (step {mid})", mid))
+    if len(all_steps) >= 2:
+        last = all_steps[-1]
+        positions.append((f"late (step {last})", last))
+
+    header = "position".ljust(22) + "correct (mean, n)".ljust(24) + "incorrect (mean, n)"
+    print(header)
+    print("-" * len(header))
+    for label, step in positions:
+        c_vals = correct_by_step.get(step, [])
+        i_vals = incorrect_by_step.get(step, [])
+        c_str = f"{sum(c_vals) / len(c_vals):.4f}, n={len(c_vals)}" if c_vals else "n/a"
+        i_str = f"{sum(i_vals) / len(i_vals):.4f}, n={len(i_vals)}" if i_vals else "n/a"
+        print(f"  {label.ljust(20)}{c_str.ljust(24)}{i_str}")
+
+    # Note on per-step record structure
+    # Each step has num_layers records. The mean_delta above averages
+    # across all layers and all heads for that step — this is a pooled
+    # position signal, not per-layer.
+
+
 # -------------------------------------------------------------------
 # Utilities
 # -------------------------------------------------------------------
@@ -669,12 +822,15 @@ def _run_dry(args: argparse.Namespace) -> None:
     """Dry run: print config and first 3 questions without GPU."""
     import datasets as ds
 
-    dataset = ds.load_dataset("truthful_qa", "generation", split="validation")
+    dataset = ds.load_dataset(
+        "truthful_qa", "generation", split="validation", revision=DATASET_REVISION
+    )
     rng = random.Random(SEED)
     selected = sorted(rng.sample(range(len(dataset)), args.sample_count))
 
     print(f"Model: {MODEL_ID}")
-    print(f"Revision: {REVISION}")
+    print(f"Model revision: {REVISION}")
+    print(f"Dataset revision: {DATASET_REVISION}")
     print(f"Samples: {args.sample_count}")
     print(f"Output: {args.output_dir}")
     print(f"Seed: {SEED}")

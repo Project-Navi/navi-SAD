@@ -67,13 +67,13 @@ Milestone C complete. Gates 0, 1, 2 pass on Mistral-7B. 119 tests (107 CPU + 12 
 
 | Decision | Choice |
 |----------|--------|
-| KV cache | **Off** (method definition) |
+| KV cache | **Off** (method definition; scope limitation — generalization to cache-on inference is unverified) |
 | Quantization | **q8 minimum, fp16 only for gates** |
 | Precision | **Native dtype inference, fp32 instrument branch** |
 | Capture boundary | **Post-RoPE Q/K/V** (preferred), hidden-state fallback is Tier C |
 | Temporal features | **PE (ordinal, primary) + raw finite differences (supplementary)** |
 | Registry scope | **Mistral only** until cross-family gates pass |
-| Benchmarks | **TruthfulQA generation** only until Gate 3 passes |
+| Benchmarks | **TruthfulQA generation** only until Gate 3 passes (full 817-question corpus, single split; HuggingFace labels `validation` by convention) |
 | Baselines | **None** until signal validated across architectures |
 | Package manager | **uv** exclusively. No pip fallback. Lockfile committed. |
 | Transformers | **~=4.57** pinned. Forward-replacement adapter is version-coupled. |
