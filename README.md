@@ -8,16 +8,16 @@ Research harness for confabulation detection via dual-path attention comparison.
 
 SAD captures post-RoPE Q/K/V tensors from inside the model's native attention forward, then recomputes both softmax and linear attention in fp32. The cosine distance between per-head outputs is the core signal. Temporal dynamics are tracked via Bandt-Pompe ordinal patterns (permutation entropy) and finite differences on the per-token delta series.
 
-Core hypothesis: when a model confabulates, the divergence between softmax and linear attention flatlines -- the model stops recruiting nonlinear attention capacity and coasts on smooth probabilistic flow.
+Core hypothesis: SAD may be an internal correlate of confidence-like inference dynamics, not a direct truth signal. Its value for confabulation detection would then come from identifying regimes where internal confidence decouples from external correctness. When softmax and linear attention agree (low divergence), the model operates in a regime where even the weaker mechanism suffices -- potentially indicating smooth, high-confidence inference that may or may not be factually grounded.
 
 **Scope limitation:** SAD is currently measured under cache-off conditions (`use_cache=False`), which forces full-prefix recomputation at each generation step. Generalization to cache-on (production) inference is unverified and remains a scope limitation.
 
 ## Research Grounding
 
-The SAD hypothesis is theoretically motivated and adjacent-literature-grounded, but not yet directly validated by repository evidence. Gates 0-2 validate the **instrument**; Gate 3 begins testing the **hypothesis**.
+The SAD hypothesis is theoretically motivated and adjacent-literature-grounded, but not yet directly validated by repository evidence. Gates 0-2 validate the **instrument**; Gate 3 begins testing the **hypothesis**. The 40-sample pilot (completed) showed that grand-mean SAD does not separate correct from incorrect generations, but per-(layer, head) structure and temporal dynamics remain open candidates.
 
 **Theoretical basis -- softmax/linear capacity gap:**
-Han et al. (2024, arXiv:2412.06590) prove that softmax attention is injective (different queries produce different distributions) while linear attention is not (distinct queries can collapse to identical outputs). This capacity gap is the structural basis for using softmax-linear divergence as a diagnostic: when the two mechanisms agree, the model operates in a regime where even the weaker mechanism suffices.
+Han et al. (2024, arXiv:2412.06590) prove that softmax attention is injective (different queries produce different distributions) while linear attention is not (distinct queries can collapse to identical outputs). This capacity gap is the structural basis for using softmax-linear divergence as a diagnostic. SAD does not claim that divergence directly measures truth -- it measures how much the model relies on its full nonlinear attention capacity versus operating in a regime where the weaker linear mechanism suffices.
 
 **Adjacent empirical motifs:**
 - D2HScore (Ding et al., 2025): low dispersion and drift in internal representations characterize hallucinated content.
@@ -27,7 +27,7 @@ Han et al. (2024, arXiv:2412.06590) prove that softmax attention is injective (d
 
 **What is novel:** No published method runs two attention mechanisms in parallel on the same frozen weights as a confabulation detector. SAD combines known ingredients (linear attention, cosine divergence, ordinal patterns) in a new configuration.
 
-**What is not yet proven:** That the observed SAD signal (softmax-linear cosine distance) carries information about confabulation rather than reflecting other sources of variation (prompt complexity, sequence length, topic domain). Gate 3 is the first empirical test of this claim.
+**What is not yet proven:** That SAD's per-head temporal dynamics carry information about confabulation-relevant regimes rather than reflecting other sources of variation (prompt complexity, sequence length, topic domain). The pilot showed the grand-mean signal washes out; the open question is whether structured per-(layer, head) features -- particularly PE on first-differenced trajectories -- can detect when internal confidence decouples from external correctness. Gate 3 is the first empirical test.
 
 ## Current State
 

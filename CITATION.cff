@@ -13,15 +13,17 @@ license: Apache-2.0
 version: 0.1.0
 date-released: "2026-03-25"
 abstract: >-
-  Research harness for confabulation detection via dual-path
-  attention comparison. Runs softmax and linear attention in
-  parallel on the same post-RoPE Q/K/V tensors from frozen
-  language model weights, measures per-head cosine divergence,
+  Research harness for studying attention dynamics during LLM
+  generation via dual-path comparison. Runs softmax and linear
+  attention in parallel on the same post-RoPE Q/K/V tensors from
+  frozen language model weights, measures per-head cosine divergence,
   and tracks temporal dynamics via Bandt-Pompe ordinal patterns.
   Exploits the theoretical capacity gap between injective softmax
-  attention and non-injective linear attention (Han et al., 2024)
-  as a diagnostic signal for when models operate in low-discrimination
-  regimes associated with confabulation.
+  attention and non-injective linear attention (Han et al., 2024).
+  SAD may be an internal correlate of confidence-like inference
+  dynamics; its value for confabulation detection comes from
+  identifying regimes where internal confidence decouples from
+  external correctness.
 keywords:
   - confabulation detection
   - hallucination detection

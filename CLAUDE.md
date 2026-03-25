@@ -2,7 +2,7 @@
 
 ## What This Is
 
-Spectral Attention Divergence (SAD): a confabulation detection method. Runs softmax and linear attention in parallel on the same weights, measures per-head cosine divergence, tracks temporal dynamics via ordinal patterns (permutation entropy).
+Spectral Attention Divergence (SAD): a research instrument for studying attention dynamics during LLM generation. Runs softmax and linear attention in parallel on the same weights, measures per-head cosine divergence, tracks temporal dynamics via ordinal patterns (permutation entropy). SAD may be an internal correlate of confidence-like inference dynamics; its value for confabulation detection would come from identifying regimes where internal confidence decouples from external correctness.
 
 **This is a research harness, not a product. The instrument can lie. Every claim requires evidence.**
 
