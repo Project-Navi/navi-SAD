@@ -59,6 +59,25 @@ def _make_position_embeddings(
     return cos, sin
 
 
+class TestInstrumentManagerInit:
+    def test_adapter_factory_none_raises(self) -> None:
+        """InstrumentManager rejects family config without adapter_factory."""
+        import pytest
+
+        bad_config = ModelFamilyConfig(
+            architecture="TestArch",
+            attn_module_path="model.layers.{}.self_attn",
+            capture_tier="A",
+            num_kv_heads_attr="num_key_value_heads",
+            num_q_heads_attr="num_attention_heads",
+            head_dim_attr="head_dim",
+            gqa_expansion=True,
+            adapter_factory=None,
+        )
+        with pytest.raises(ValueError, match="no adapter_factory"):
+            InstrumentManager(bad_config)
+
+
 class TestInstrumentManager:
     def test_single_layer_produces_records(self) -> None:
         attn, config = _make_small_attn()
@@ -166,6 +185,19 @@ class TestInstrumentManager:
         processor_list = LogitsProcessorList([callback])
         assert len(processor_list) == 1
 
+    def test_step_callback_increments_step_idx(self) -> None:
+        """Calling the step callback actually increments the step counter."""
+        mgr = InstrumentManager(_TEST_FAMILY)
+        callback = mgr.make_step_callback()
+
+        assert mgr._step_idx == 0
+        dummy_ids = torch.zeros(1, 5, dtype=torch.long)
+        dummy_scores = torch.zeros(1, 100)
+        callback(dummy_ids, dummy_scores)
+        assert mgr._step_idx == 1
+        callback(dummy_ids, dummy_scores)
+        assert mgr._step_idx == 2
+
 
 class TestInstrumentManagerParity:
     def test_parity_mode_produces_records(self) -> None:
@@ -188,6 +220,23 @@ class TestInstrumentManagerParity:
         assert parity_records[0].relative_l2_error >= 0.0
         assert parity_records[0].max_absolute_error >= 0.0
         assert parity_records[0].pre_oproj_cosine is not None
+
+    def test_parity_mha_no_expansion(self) -> None:
+        """Parity works when num_q_heads == num_kv_heads (MHA, no GQA expansion)."""
+        attn, config = _make_small_attn(hidden_size=64, num_heads=4, num_kv_heads=4)
+        parity = ParityConfig(enabled=True, include_pre_oproj=True)
+        mgr = InstrumentManager(_TEST_FAMILY, sink_exclude=0, parity=parity)
+        mgr.install_layer(attn, layer_idx=0, num_q_heads=4, num_kv_heads=4)
+
+        hidden_states = torch.randn(1, 8, 64)
+        pos_emb = _make_position_embeddings(config, 8)
+        with torch.no_grad():
+            attn(hidden_states, pos_emb, None)
+        mgr.step()
+
+        records = mgr.get_parity_records()
+        assert len(records) == 1
+        assert 0.0 <= records[0].cosine_similarity <= 1.0
 
     def test_parity_none_produces_no_records(self) -> None:
         """parity=None means no parity at all."""

@@ -81,6 +81,46 @@ class TestAdapterLifecycle:
         adapter.install(attn, capture_fn=lambda q, k, v: None)
         adapter.uninstall(attn)
 
+    def test_incompatible_version_raises(self) -> None:
+        """Version guard rejects incompatible transformers versions."""
+        from navi_sad.core import adapter as adapter_mod
+
+        attn, _ = _make_small_attn()
+        ad = MistralAdapter()
+        original_min = adapter_mod._COMPAT_MIN
+        try:
+            # Temporarily set a range that excludes the current version
+            adapter_mod._COMPAT_MIN = "99.0.0"
+            with pytest.raises(RuntimeError, match="requires transformers"):
+                ad.install(attn, capture_fn=lambda q, k, v: None)
+        finally:
+            adapter_mod._COMPAT_MIN = original_min
+
+    def test_unparseable_version_raises(self) -> None:
+        """Version guard rejects unparseable version strings."""
+        import unittest.mock
+
+        from navi_sad.core.adapter import _check_transformers_version
+
+        with unittest.mock.patch("transformers.__version__", "not.a.version"):
+            with pytest.raises(RuntimeError, match="Cannot parse"):
+                _check_transformers_version()
+
+    def test_non_eager_raises_on_forward(self) -> None:
+        """Adapter raises RuntimeError on non-eager attention implementation."""
+        attn, config = _make_small_attn()
+        adapter = MistralAdapter()
+        adapter.install(attn, capture_fn=lambda q, k, v: None)
+
+        # Patch the config to simulate non-eager after install
+        attn.config._attn_implementation = "sdpa"
+
+        hidden_states = torch.randn(1, 8, 64)
+        pos_emb = _make_position_embeddings(config, 8)
+        with pytest.raises(RuntimeError, match="attn_implementation='eager'"):
+            with torch.no_grad():
+                attn(hidden_states, pos_emb, None)
+
     def test_signature_parity(self) -> None:
         """Patched forward must accept the same parameter names as original."""
         attn, _ = _make_small_attn()

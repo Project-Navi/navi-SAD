@@ -6,22 +6,8 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-import torch
-
 if TYPE_CHECKING:
     from navi_sad.core.adapter import MistralAdapter
-
-
-@dataclass
-class CaptureRecord:
-    """Ephemeral per-step capture. NOT serialized --- freed after computing deltas."""
-
-    run_id: str
-    step_idx: int
-    layer_idx: int
-    q_last: torch.Tensor  # [1, num_heads, 1, head_dim]
-    k_prefix: torch.Tensor  # [1, num_kv_heads, seq_len, head_dim]
-    v_prefix: torch.Tensor  # [1, num_kv_heads, seq_len, head_dim]
 
 
 @dataclass
