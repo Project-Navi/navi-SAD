@@ -14,5 +14,6 @@ htmlcov/
 *.gz
 results/
 
-# Plans and specs are local working docs, never committed
+# Plans, specs, and audit responses are local working docs, never committed
 docs/plans/
+docs/audit/
