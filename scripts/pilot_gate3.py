@@ -41,6 +41,13 @@ from navi_sad.pilot.helpers import (
     score_sample,
     validate_review_integrity,
 )
+from navi_sad.pilot.schema import (
+    PilotMetadata,
+    PilotReviewRecord,
+    PilotSampleRecord,
+    PilotSamplesArtifact,
+    make_review_from_sample,
+)
 from navi_sad.version import __version__
 
 logger = logging.getLogger(__name__)
@@ -89,12 +96,21 @@ def run_generation(args: argparse.Namespace) -> None:
     # ---------------------------------------------------------------
     # Model + tokenizer
     # ---------------------------------------------------------------
+    # Deterministic CUDA controls — same as gate fixtures.
+    torch.backends.cudnn.deterministic = True  # type: ignore[attr-defined]
+    torch.backends.cudnn.benchmark = False  # type: ignore[attr-defined]
+    torch.manual_seed(0)
+    torch.cuda.manual_seed_all(0)
+
     logger.info("Loading model %s (revision=%s)...", MODEL_ID, REVISION[:12])
     tokenizer = AutoTokenizer.from_pretrained(MODEL_ID, revision=REVISION)
+    if tokenizer.pad_token_id is None:
+        tokenizer.pad_token_id = tokenizer.eos_token_id
+
     model = AutoModelForCausalLM.from_pretrained(
         MODEL_ID,
         revision=REVISION,
-        torch_dtype=torch.float16,
+        dtype=torch.float16,
         device_map="cuda",
         attn_implementation="eager",
     )
@@ -124,32 +140,32 @@ def run_generation(args: argparse.Namespace) -> None:
     # ---------------------------------------------------------------
     # Metadata
     # ---------------------------------------------------------------
-    pilot_metadata = {
-        "seed": SEED,
-        "selected_indices": selected_indices,
-        "burned_indices": selected_indices,
-        "dataset_name": "truthful_qa",
-        "dataset_config": "generation",
-        "dataset_split": "validation (HuggingFace convention; TruthfulQA is a single "
+    pilot_metadata = PilotMetadata(
+        seed=SEED,
+        selected_indices=selected_indices,
+        burned_indices=selected_indices,
+        dataset_name="truthful_qa",
+        dataset_config="generation",
+        dataset_split="validation (HuggingFace convention; TruthfulQA is a single "
         "817-question corpus with no train/test partition in the original design)",
-        "dataset_revision": DATASET_REVISION,
-        "datasets_version": ds.__version__,
-        "dataset_fingerprint": getattr(dataset, "_fingerprint", None),
-        "model_id": MODEL_ID,
-        "model_revision": REVISION,
-        "tokenizer_id": MODEL_ID,
-        "tokenizer_revision": tokenizer_revision,
-        "chat_template_hash": chat_template_hash,
-        "transformers_version": _get_transformers_version(),
-        "navi_sad_version": __version__,
-        "decode_settings": DECODE_KWARGS,
-    }
+        dataset_revision=DATASET_REVISION,
+        datasets_version=ds.__version__,
+        dataset_fingerprint=getattr(dataset, "_fingerprint", None),
+        model_id=MODEL_ID,
+        model_revision=REVISION,
+        tokenizer_id=MODEL_ID,
+        tokenizer_revision=tokenizer_revision,
+        chat_template_hash=chat_template_hash,
+        transformers_version=_get_transformers_version(),
+        navi_sad_version=__version__,
+        decode_settings=DECODE_KWARGS,
+    )
 
     # ---------------------------------------------------------------
     # Generation loop
     # ---------------------------------------------------------------
-    samples: list[dict[str, Any]] = []
-    reviews: list[dict[str, Any]] = []
+    samples: list[PilotSampleRecord] = []
+    reviews: list[PilotReviewRecord] = []
     invalid_samples: list[int] = []
     eos_token_id = tokenizer.eos_token_id
 
@@ -161,11 +177,10 @@ def run_generation(args: argparse.Namespace) -> None:
 
     def _flush_artifacts() -> None:
         """Write current accumulated samples and reviews to disk."""
-        samples_artifact = {"metadata": pilot_metadata, "samples": samples}
-        with open(samples_path, "w", encoding="utf-8") as f:
-            json.dump(samples_artifact, f, indent=2, ensure_ascii=False)
+        artifact = PilotSamplesArtifact(metadata=pilot_metadata, samples=samples)
+        artifact.write(samples_path)
         with open(review_path, "w", encoding="utf-8") as f:
-            json.dump(reviews, f, indent=2, ensure_ascii=False)
+            json.dump([r.to_dict() for r in reviews], f, indent=2, ensure_ascii=False)
 
     with RawRecordWriter(raw_path) as raw_writer:
         for i, dataset_idx in enumerate(selected_indices):
@@ -177,19 +192,22 @@ def run_generation(args: argparse.Namespace) -> None:
             rendered = tokenizer.apply_chat_template(
                 messages, add_generation_prompt=True, tokenize=False
             )
-            input_ids = tokenizer(rendered, return_tensors="pt", add_special_tokens=False)[
-                "input_ids"
-            ].to(model.device)
+            tokenized = tokenizer(rendered, return_tensors="pt", add_special_tokens=False)
+            input_ids = tokenized["input_ids"].to(model.device)
+            attention_mask = torch.ones_like(input_ids)
             assert input_ids.shape[0] == 1, f"Expected B=1, got {input_ids.shape[0]}"
 
             prompt_token_ids = input_ids[0].tolist()
             prompt_length = len(prompt_token_ids)
 
-            # Generate
+            # Generate with explicit attention_mask and pad_token_id
+            # to suppress HuggingFace warnings and make the contract clear.
             mgr.reset()
             with torch.no_grad():
                 output = model.generate(
                     input_ids,
+                    attention_mask=attention_mask,
+                    pad_token_id=tokenizer.pad_token_id,
                     max_new_tokens=MAX_NEW_TOKENS,
                     do_sample=False,
                     use_cache=False,
@@ -270,53 +288,45 @@ def run_generation(args: argparse.Namespace) -> None:
                 for r in records
             ]
 
-            # Build sample record
-            sample: dict[str, Any] = {
-                "dataset_index": dataset_idx,
-                "question": row["question"],
-                "best_answer": row["best_answer"],
-                "correct_answers": row["correct_answers"],
-                "incorrect_answers": row["incorrect_answers"],
-                "rendered_prompt": rendered,
-                "prompt_token_ids": prompt_token_ids,
-                "prompt_token_count": prompt_length,
-                "generated_token_ids": generated_token_ids,
-                "generated_token_count": generated_token_count,
-                "generation_text": generation_text,
-                "stop_reason": stop_reason,
-                "per_step": per_step,
-                "full_gen_mean_delta": full_gen_matrix,
-                "leading_span_mean_delta": leading_span_matrix,
-                "leading_span_token_count": ls_count,
-                "leading_span_fallback": ls_fallback,
-                "scorer_label": scorer_label,
-                "scorer_leading_span": span,
-                "scorer_leading_span_stop_reason": span_stop_reason,
-                "scorer_matched_correct": matched_correct,
-                "scorer_matched_incorrect": matched_incorrect,
-                "sample_error": sample_error,
-            }
+            # Build sample record (frozen typed schema)
+            sample = PilotSampleRecord(
+                dataset_index=dataset_idx,
+                question=row["question"],
+                best_answer=row["best_answer"],
+                correct_answers=tuple(row["correct_answers"]),
+                incorrect_answers=tuple(row["incorrect_answers"]),
+                rendered_prompt=rendered,
+                prompt_token_ids=tuple(prompt_token_ids),
+                prompt_token_count=prompt_length,
+                generated_token_ids=tuple(generated_token_ids),
+                generated_token_count=generated_token_count,
+                generation_text=generation_text,
+                stop_reason=stop_reason,
+                per_step=tuple(per_step),
+                full_gen_mean_delta=(
+                    tuple(tuple(row_vals) for row_vals in full_gen_matrix)
+                    if full_gen_matrix is not None
+                    else None
+                ),
+                leading_span_mean_delta=(
+                    tuple(tuple(row_vals) for row_vals in leading_span_matrix)
+                    if leading_span_matrix is not None
+                    else None
+                ),
+                leading_span_token_count=ls_count,
+                leading_span_fallback=ls_fallback,
+                scorer_label=scorer_label,
+                scorer_leading_span=span,
+                scorer_leading_span_stop_reason=span_stop_reason,
+                scorer_matched_correct=tuple(matched_correct),
+                scorer_matched_incorrect=tuple(matched_incorrect),
+                sample_error=sample_error,
+            )
             samples.append(sample)
 
-            # Build review record
-            review: dict[str, Any] = {
-                "dataset_index": dataset_idx,
-                "question": row["question"],
-                "best_answer": row["best_answer"],
-                "correct_answers": row["correct_answers"],
-                "incorrect_answers": row["incorrect_answers"],
-                "rendered_prompt": rendered,
-                "generation_text": generation_text,
-                "generated_token_count": generated_token_count,
-                "scorer_label": scorer_label,
-                "scorer_leading_span": span,
-                "scorer_leading_span_stop_reason": span_stop_reason,
-                "scorer_matched_correct": matched_correct,
-                "scorer_matched_incorrect": matched_incorrect,
-                "human_label": "",
-                "disagreement_category": "",
-                "disagreement_note": "",
-            }
+            # Derive review record from sample (shared schema,
+            # no manual field duplication)
+            review = make_review_from_sample(sample)
             reviews.append(review)
 
             # Write raw JSONL record
