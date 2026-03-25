@@ -6,8 +6,6 @@ compute_confusion_matrix.
 
 from __future__ import annotations
 
-import copy
-
 import pytest
 
 from navi_sad.pilot.helpers import (
@@ -15,7 +13,6 @@ from navi_sad.pilot.helpers import (
     compute_confusion_matrix,
     validate_review_integrity,
 )
-
 
 # -------------------------------------------------------------------
 # Fixtures
@@ -171,9 +168,7 @@ class TestValidateReviewIntegrity:
     def test_disagreement_category_ok_when_labels_agree(self) -> None:
         """No disagreement_category required when labels agree."""
         samples = [_make_sample(0, scorer_label="correct")]
-        reviews = [
-            _make_review(0, human_label="correct", scorer_label="correct")
-        ]
+        reviews = [_make_review(0, human_label="correct", scorer_label="correct")]
         # Should not raise
         validate_review_integrity(reviews, samples)
 
@@ -288,9 +283,15 @@ class TestComputeConfusionMatrix:
     def test_all_cells_populated(self) -> None:
         scorer = ["correct", "incorrect", "ambiguous"] * 3
         human = [
-            "correct", "correct", "correct",
-            "incorrect", "incorrect", "incorrect",
-            "ambiguous", "ambiguous", "ambiguous",
+            "correct",
+            "correct",
+            "correct",
+            "incorrect",
+            "incorrect",
+            "incorrect",
+            "ambiguous",
+            "ambiguous",
+            "ambiguous",
         ]
         result = compute_confusion_matrix(scorer, human)
         # Each scorer label predicted 3 times

@@ -17,7 +17,6 @@ from navi_sad.pilot.helpers import (
     score_sample,
 )
 
-
 # -------------------------------------------------------------------
 # is_word_boundary
 # -------------------------------------------------------------------
@@ -91,9 +90,7 @@ def test_is_word_boundary(char: str, expected: bool) -> None:
         ("First. Second. Third.", "First", "period_space"),
     ],
 )
-def test_extract_leading_span(
-    text: str, expected_span: str, expected_reason: str
-) -> None:
+def test_extract_leading_span(text: str, expected_span: str, expected_reason: str) -> None:
     span, reason = extract_leading_span(text)
     assert span == expected_span
     assert reason == expected_reason
@@ -133,13 +130,13 @@ class TestScoreSample:
 
     def test_boundary_prefix_comma(self) -> None:
         """Span 'Paris, France' starts with candidate 'Paris' + boundary ','."""
-        label, mc, mi = score_sample("Paris, France", ["Paris"], ["London"])
+        label, mc, _mi = score_sample("Paris, France", ["Paris"], ["London"])
         assert label == "correct"
         assert mc == ["Paris"]
 
     def test_boundary_prefix_space(self) -> None:
         """Span 'Paris is great' starts with candidate 'Paris' + boundary ' '."""
-        label, mc, mi = score_sample("Paris is great", ["Paris"], ["London"])
+        label, mc, _mi = score_sample("Paris is great", ["Paris"], ["London"])
         assert label == "correct"
         assert mc == ["Paris"]
 
@@ -151,13 +148,13 @@ class TestScoreSample:
         assert mi == []
 
     def test_case_insensitive(self) -> None:
-        label, mc, mi = score_sample("PARIS", ["paris"], ["london"])
+        label, mc, _mi = score_sample("PARIS", ["paris"], ["london"])
         assert label == "correct"
         assert mc == ["paris"]
 
     def test_dedup_candidates(self) -> None:
         """Duplicate candidates after normalization don't double-count."""
-        label, mc, mi = score_sample("Paris", ["Paris", "paris", "PARIS"], [])
+        label, mc, _mi = score_sample("Paris", ["Paris", "paris", "PARIS"], [])
         assert label == "correct"
         # Only first original kept after dedup
         assert mc == ["Paris"]
@@ -170,18 +167,18 @@ class TestScoreSample:
 
     def test_candidate_longer_than_span(self) -> None:
         """Candidate 'Paris is the capital' does not match span 'Paris'."""
-        label, mc, mi = score_sample("Paris", ["Paris is the capital"], [])
+        label, mc, _mi = score_sample("Paris", ["Paris is the capital"], [])
         assert label == "ambiguous"
         assert mc == []
 
     def test_whitespace_normalization(self) -> None:
         """Leading/trailing whitespace stripped during normalization."""
-        label, mc, mi = score_sample("  Paris  ", ["  paris  "], [])
+        label, _mc, _mi = score_sample("  Paris  ", ["  paris  "], [])
         assert label == "correct"
 
     def test_boundary_prefix_with_space_in_candidate(self) -> None:
         """Span 'Paris Texas' matches candidate 'Paris' at space boundary."""
-        label, mc, mi = score_sample("Paris Texas", ["Paris"], ["London"])
+        label, mc, _mi = score_sample("Paris Texas", ["Paris"], ["London"])
         assert label == "correct"
         assert mc == ["Paris"]
 
@@ -216,9 +213,7 @@ class TestComputeMeanDeltaMatrix:
             StepRecord(step_idx=1, layer_idx=1, per_head_delta=[0.7, 0.8]),
         ]
         # Only step 0 included
-        matrix = compute_mean_delta_matrix(
-            records, num_layers=2, num_heads=2, max_step=1
-        )
+        matrix = compute_mean_delta_matrix(records, num_layers=2, num_heads=2, max_step=1)
         assert matrix is not None
         assert matrix[0] == pytest.approx([0.1, 0.2])
         assert matrix[1] == pytest.approx([0.5, 0.6])
@@ -232,9 +227,7 @@ class TestComputeMeanDeltaMatrix:
         records = [
             StepRecord(step_idx=0, layer_idx=0, per_head_delta=[0.1]),
         ]
-        matrix = compute_mean_delta_matrix(
-            records, num_layers=1, num_heads=1, max_step=0
-        )
+        matrix = compute_mean_delta_matrix(records, num_layers=1, num_heads=1, max_step=0)
         assert matrix is None
 
     def test_missing_layer_raises(self) -> None:
@@ -278,69 +271,53 @@ class TestFindLeadingSpanTokenCount:
 
     def test_exact_single_token(self) -> None:
         tok = MockTokenizer({1: "Paris", 2: " is", 3: " great"})
-        k, fallback = find_leading_span_token_count(
-            [1, 2, 3], "Paris", tok, {}
-        )
+        k, fallback = find_leading_span_token_count([1, 2, 3], "Paris", tok, {})
         assert k == 1
         assert fallback is False
 
     def test_multi_token_span(self) -> None:
         tok = MockTokenizer({1: "Par", 2: "is"})
-        k, fallback = find_leading_span_token_count(
-            [1, 2], "Paris", tok, {}
-        )
+        k, fallback = find_leading_span_token_count([1, 2], "Paris", tok, {})
         assert k == 2
         assert fallback is False
 
     def test_boundary_after_span(self) -> None:
         """Span covered at k=1, word boundary at next char."""
         tok = MockTokenizer({1: "Paris, France", 2: " is", 3: " nice"})
-        k, fallback = find_leading_span_token_count(
-            [1, 2, 3], "Paris", tok, {}
-        )
+        k, fallback = find_leading_span_token_count([1, 2, 3], "Paris", tok, {})
         assert k == 1
         assert fallback is False
 
     def test_no_boundary_continues(self) -> None:
         """'Parisians' starts with 'Paris' but no boundary — must continue."""
         tok = MockTokenizer({1: "Parisians", 2: " love"})
-        k, fallback = find_leading_span_token_count(
-            [1, 2], "Paris", tok, {}
-        )
+        k, fallback = find_leading_span_token_count([1, 2], "Paris", tok, {})
         # Neither decode produces "paris" at a boundary
         assert k == 2
         assert fallback is True
 
     def test_fallback(self) -> None:
         tok = MockTokenizer({1: "abc", 2: "def"})
-        k, fallback = find_leading_span_token_count(
-            [1, 2], "xyz", tok, {}
-        )
+        k, fallback = find_leading_span_token_count([1, 2], "xyz", tok, {})
         assert k == 2
         assert fallback is True
 
     def test_empty_tokens(self) -> None:
         tok = MockTokenizer({})
-        k, fallback = find_leading_span_token_count(
-            [], "Paris", tok, {}
-        )
+        k, fallback = find_leading_span_token_count([], "Paris", tok, {})
         assert k == 0
         assert fallback is True
 
     def test_empty_span(self) -> None:
         tok = MockTokenizer({1: "hello"})
-        k, fallback = find_leading_span_token_count(
-            [1], "", tok, {}
-        )
+        k, fallback = find_leading_span_token_count([1], "", tok, {})
         assert k == 0
         assert fallback is False
 
     def test_case_insensitive(self) -> None:
         """Alignment uses lowercase normalization."""
         tok = MockTokenizer({1: "PARIS", 2: " IS"})
-        k, fallback = find_leading_span_token_count(
-            [1, 2], "paris", tok, {}
-        )
+        k, fallback = find_leading_span_token_count([1, 2], "paris", tok, {})
         assert k == 1
         assert fallback is False
 
@@ -354,7 +331,5 @@ class TestFindLeadingSpanTokenCount:
                 return "Paris"
 
         tok = CapturingTokenizer()
-        find_leading_span_token_count(
-            [1], "Paris", tok, {"skip_special_tokens": True}
-        )
+        find_leading_span_token_count([1], "Paris", tok, {"skip_special_tokens": True})
         assert received_kwargs["skip_special_tokens"] is True
