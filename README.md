@@ -35,7 +35,7 @@ Han et al. (2024, arXiv:2412.06590) prove that softmax attention is injective (d
 
 ## Current State
 
-- **Milestones A + B:** Complete. Core math, types, I/O, mock hooks, signal processing.
+- **Milestones A + B:** Complete. Core math, types, I/O, mock hooks, temporal analysis.
 - **Milestone C:** Complete. Real instrumentation proven on Mistral-7B.
 - **Milestone D (Gates 2-3):** Gate 2 passes. Gate 3 pilot complete (40 samples, 3-reviewer majority-vote labels). Key findings: grand-mean SAD does not separate groups; per-head PE on first-differenced trajectories shows structural signal (338/1024 heads with |d|>0.5 in 3+ mode/segment combos, 4.6:1 directional asymmetry). Full Gate 3 redesigned around synthetic HMM benchmarks with known fractal dimensions (see below).
 
