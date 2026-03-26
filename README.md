@@ -31,15 +31,15 @@ Han et al. (2024, arXiv:2412.06590) prove that softmax attention is injective (d
 
 **What is novel:** No published method runs two attention mechanisms in parallel on the same frozen weights as a dynamical systems probe. SAD combines known ingredients (linear attention, cosine divergence, delay-coordinate embedding via ordinal patterns) in a new configuration. The Takens framing -- treating per-head SAD as an attractor reconstruction rather than a scalar diagnostic -- is the theoretical contribution.
 
-**What is not yet proven:** That the reconstructed attractors carry information about inference regimes rather than reflecting other sources of variation (prompt complexity, sequence length, topic domain). The pilot showed the grand-mean signal washes out; the open question is whether structured per-(layer, head) attractor features -- particularly PE on first-differenced trajectories -- distinguish meaningfully different dynamical regimes. Gate 3 is the first empirical test, using confabulation (TruthfulQA correct/incorrect) as the initial regime partition.
+**What is not yet proven:** That the reconstructed attractors carry information about inference regimes rather than reflecting other sources of variation (prompt complexity, sequence length, topic domain). The 40-sample pilot showed the grand-mean signal washes out, but per-(layer, head) PE on first-differenced trajectories shows structural signal that survives across transforms. The open question is whether this structure corresponds to the computational-mechanical complexity of the inference problem -- specifically, whether per-head PE tracks the fractal dimension of the belief state attractor predicted by Shai et al. (NeurIPS 2024). Gate 3 tests this with synthetic HMM benchmarks where ground-truth fractal dimensions are known.
 
 ## Current State
 
-- **Milestones A + B:** Complete. Core math, types, I/O, mock hooks, signal processing.
+- **Milestones A + B:** Complete. Core math, types, I/O, mock hooks, temporal analysis.
 - **Milestone C:** Complete. Real instrumentation proven on Mistral-7B.
-- **Milestone D (Gates 2-3):** Gate 2 passes. Gate 3 pilot harness built, pending smoke run. TruthfulQA full corpus (817 questions, single split; HuggingFace labels this `validation` by convention).
+- **Milestone D (Gates 2-3):** Gate 2 passes. Gate 3 pilot complete (40 samples, 3-reviewer majority-vote labels). Key findings: grand-mean SAD does not separate groups; per-head PE on first-differenced trajectories shows structural signal (338/1024 heads with |d|>0.5 in 3+ mode/segment combos, 4.6:1 directional asymmetry). Full Gate 3 redesigned around synthetic HMM benchmarks with known fractal dimensions (see below).
 
-195 tests (183 CPU + 12 GPU). CI enforces lint, format, typecheck, and test on every PR.
+249 tests (237 CPU + 12 GPU). CI enforces lint, format, typecheck, and test on every PR.
 
 ### Instrument Validation Summary
 
@@ -54,7 +54,7 @@ All validation performed on Mistral-7B-Instruct-v0.2 (fp16, eager attention, rev
 ## Scope (Phase 1)
 
 - Model: Mistral-7B only (other families earn entry after Gate 1)
-- Benchmark: TruthfulQA generation (after Gate 3)
+- Benchmark: Synthetic HMM family with known fractal dimensions (Gate 3). TruthfulQA as downstream application after instrument validation.
 - No baselines until signal validated across architectures
 
 ## Installation
@@ -100,8 +100,12 @@ src/navi_sad/
     types.py          # StepRecord, RawSampleRecord, ModelFamilyConfig, ParityConfig, ParityRecord
   signal/
     ordinal.py        # Bandt-Pompe ordinal patterns, permutation entropy
+    pe_features.py    # SAD-specific PE: per-(layer,head) extraction, transforms, eligibility
     derivatives.py    # Finite differences on delta series
     aggregation.py    # Per-layer-per-head to per-token aggregation
+  pilot/
+    schema.py         # Typed write-side schema for pilot artifacts
+    helpers.py        # Extraction, scoring, scalar computation, integrity validation
   io/
     writer.py         # Gzipped JSONL writer (raw records)
     reader.py         # Gzipped JSONL reader
@@ -124,7 +128,10 @@ tests/
 
 | Gate | What | Status |
 |------|------|--------|
-| 3 | Head sparsity (TruthfulQA, per-head Cohen's d) | Pilot pending |
+| 3 (pilot) | Per-head PE structure on TruthfulQA (40 samples) | **Complete** — structural signal found, grand-mean dead |
+| 3 (full) | Rank correlation of per-head PE with known fractal dimension across synthetic HMM family | Planned |
+
+See [ROADMAP.md](ROADMAP.md) for the full research plan.
 
 ## License
 

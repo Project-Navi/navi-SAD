@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "navi-SAD"
 version = "0.1.0"
-description = "Spectral Attention Divergence — confabulation detection via dual-path attention comparison"
+description = "Spectral Attention Divergence — dynamical systems probe for LLM inference via dual-path attention comparison and delay-coordinate attractor reconstruction"
 license = "Apache-2.0"
 requires-python = ">=3.10"
 dependencies = [

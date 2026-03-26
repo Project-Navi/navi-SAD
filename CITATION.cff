@@ -20,18 +20,20 @@ abstract: >-
   and tracks temporal dynamics via Bandt-Pompe ordinal patterns.
   Exploits the theoretical capacity gap between injective softmax
   attention and non-injective linear attention (Han et al., 2024).
-  SAD may be an internal correlate of confidence-like inference
-  dynamics; its value for confabulation detection comes from
-  identifying regimes where internal confidence decouples from
-  external correctness.
+  Per-head SAD trajectories are treated as delay-coordinate
+  embeddings of the model's internal dynamical state (Takens'
+  embedding theorem). Permutation entropy on these reconstructions
+  characterizes attractor geometry. The instrument is hypothesis-
+  agnostic; confabulation detection is one application among many.
 keywords:
-  - confabulation detection
-  - hallucination detection
+  - dynamical systems
+  - attractor reconstruction
+  - delay-coordinate embedding
   - attention mechanisms
   - linear attention
-  - spectral analysis
   - permutation entropy
   - large language models
+  - llm interpretability
 references:
   - type: article
     title: >-
