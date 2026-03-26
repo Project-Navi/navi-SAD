@@ -2,7 +2,7 @@
 
 ## Immediate (no GPU, existing pilot data)
 
-1. **D-sweep on pilot data.** Sweep embedding dimension D from 3 to 7 on existing 40-sample records. Check whether PE stabilizes as D increases. If it stabilizes, embedding dimension is sufficient for the attractor. If it keeps climbing, we're undersampling fractal structure.
+1. **D-sweep on pilot data.** Sweep embedding dimension D from 3 to 4 on existing 40-sample records (pilot trajectories are ~77 steps; under the 2*D! eligibility policy, D=5 requires 244 steps and is infeasible on pilot data). Check whether PE changes between D=3 and D=4. If a longer-sequence run is needed to test D=5+, note this as a requirement for the synthetic HMM benchmark design.
 
 2. **Layer-stratified PE profiles.** Plot per-layer PE separation (correct vs incorrect) from L0 to L31 in the pilot data. Tests the progressive construction prediction from Shai et al. (NeurIPS 2024): if later layers have more fully constructed belief state geometry, correct/incorrect separation should grow with depth.
 

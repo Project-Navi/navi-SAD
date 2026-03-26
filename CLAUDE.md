@@ -2,7 +2,7 @@
 
 ## What This Is
 
-Spectral Attention Divergence (SAD): a research instrument for studying attention dynamics during LLM generation. Runs softmax and linear attention in parallel on the same weights, measures per-head cosine divergence, and reconstructs internal dynamics via delay-coordinate embedding (permutation entropy).
+Spectral Attention Divergence (SAD): a dynamical systems probe for LLM inference. Runs softmax and linear attention in parallel on the same weights, measures per-head cosine divergence, and reconstructs the model's internal attractor via delay-coordinate embedding (permutation entropy).
 
 **Takens' embedding framing:** Each per-head SAD trajectory is a delay-coordinate embedding of the model's internal dynamical state. We are not measuring a signal — we are reconstructing an attractor. PE is load-bearing: Bandt-Pompe ordinal patterns are designed for delay-coordinate reconstructions. The instrument is hypothesis-agnostic — it reconstructs dynamical structure. Confabulation detection remains one application (attractor collapse correlating with incorrect generation), but the instrument can characterize any regime that leaves a signature in per-head attention dynamics.
 
@@ -10,9 +10,7 @@ Spectral Attention Divergence (SAD): a research instrument for studying attentio
 
 ## Current State (2026-03-25)
 
-Milestone C complete. Gates 0, 1, 2 pass on Mistral-7B. Gate 3 pilot complete (40 samples, manually labeled). PE feature layer built. 229 tests (217 CPU + 12 GPU).
-
-**Open PR:** #18 (`feat/sad-pe-features`) — PE feature layer + hypothesis revision. Merge before next work.
+Milestone C complete. Gates 0, 1, 2 pass on Mistral-7B. Gate 3 pilot complete (40 samples, manually labeled). PE feature layer built. 249 tests (237 CPU + 12 GPU). See [ROADMAP.md](ROADMAP.md) for research priorities.
 
 ### Pilot findings (characterization, not evidential)
 
@@ -24,7 +22,7 @@ The 40-sample pilot falsified the naive hypothesis and produced one result worth
 - **Position confound confirmed.** Both groups climb from ~0.24 to ~0.40 over generation. First-differencing removes the trend but signal persists.
 - **Shadow scorer dead.** 10% agreement. Manual labels (3-reviewer majority vote, 92% unanimous) are canonical.
 
-**Hypothesis revised:** SAD is not a truth detector. It is a dynamical systems probe. The instrument reconstructs per-head attractor structure; confabulation detection (attractor collapse correlating with incorrect generation) is the first application, not the mission. The permutation null test asks whether the reconstructed attractor structure is real, not whether it detects confabulation specifically.
+**Hypothesis revised:** SAD is not a truth detector. It is a dynamical systems probe that reconstructs per-head attractor structure. The theoretical anchor is Shai et al. (NeurIPS 2024): transformers construct belief state geometry in their residual streams, and that geometry can be genuinely fractal for non-unifilar inference processes. Gate 3 tests whether per-head PE tracks the computational-mechanical complexity of the inference problem, using synthetic HMM benchmarks with known fractal dimensions.
 
 ### What exists and works
 
@@ -58,16 +56,17 @@ The 40-sample pilot falsified the naive hypothesis and produced one result worth
 ### What does NOT exist yet
 
 **Next immediate steps (in order):**
-1. Permutation null test on pilot PE data (label-shuffle, preserve class sizes)
-2. Bootstrap/jackknife stability on the 9 incorrect samples
-3. Intersect PE heads with leading-span Cohen's d heads
-4. Logits entropy capture (LogitsProcessor addition, not attention hook change)
-5. Gate 3 spec with confidence-regime framing
+1. D-sweep on pilot data (D=3..4 feasible under 2*D! policy; D=5+ requires longer sequences or relaxed eligibility)
+2. Layer-stratified PE profiles (per-layer correct/incorrect separation, L0-L31)
+3. Observable genericity argument (justify per-head SAD as generic observable of belief state)
+4. Polish pass (PerStepDict boundary type, fail-closed fixes, type annotations, CI coverage)
+5. Permutation null test (stratified null on recurrence statistic with eligibility accounting)
+6. Rényi fingerprint (port Rényi entropy parameter sweeps from production C++ kernel)
 
 **Milestone D (remaining):**
-- Full Gate 3: 200 samples, train/val split, per-head features with multiplicity correction
-- Production TruthfulQA scorer (LLM judge, not string matcher)
-- Analysis module (AUROC, bootstrap CIs)
+- Gate 3: synthetic HMM benchmark — rank correlation of per-head PE with known fractal dimension across a family of generating processes with known unifilarity properties
+- Analysis module under `src/navi_sad/analysis/` (eligibility, recurrence, permutation)
+- TruthfulQA revisited post-validation as one regime partition among many
 - Gate 6: Overhead measurement (informational, not blocking)
 
 **Deferred (from IA audit, post-pilot):**
@@ -82,6 +81,9 @@ The 40-sample pilot falsified the naive hypothesis and produced one result worth
 - `docs/plans/PLAN.md` -- Implementation plan v2 (Milestones A-D).
 - `docs/plans/GATE3_PILOT_PLAN.md` -- Gate 3 pilot implementation plan. Implemented (PR #15).
 - `docs/plans/GATE3_PILOT_SPEC.md` -- Gate 3 pilot design spec. Implemented. 2 rounds Grumpy + 2 rounds IA.
+- `docs/plans/POLISH_PASS_SPEC.md` -- Polish pass spec (PerStepDict, fail-closed, type annotations, CI).
+- `docs/plans/POLISH_PASS_PLAN.md` -- Polish pass implementation plan.
+- `docs/plans/PE_RECURRENCE_NULL_PLAN.md` -- Permutation null test plan for PE recurrence statistic.
 - `docs/audit/IA_RESPONSE_2026-03-25.md` -- Formal IA audit response with dispositions.
 - `docs/audit/SESSION_REPORT_2026-03-25.md` -- Full session report with bugs-caught-by-auditors analysis.
 
@@ -99,9 +101,9 @@ The 40-sample pilot falsified the naive hypothesis and produced one result worth
 | Quantization | **q8 minimum, fp16 only for gates** |
 | Precision | **Native dtype inference, fp32 instrument branch** |
 | Capture boundary | **Post-RoPE Q/K/V** (preferred), hidden-state fallback is Tier C |
-| Temporal features | **PE per-(layer, head) on first-differenced SAD trajectories (primary) + raw finite differences (supplementary)**. PE on pooled grand means is dead. |
+| Temporal features | **PE per-(layer, head) on first-differenced SAD trajectories (primary) + raw finite differences (supplementary) + Rényi fingerprint (planned)**. PE on pooled grand means is dead. |
 | Registry scope | **Mistral only** until cross-family gates pass |
-| Benchmarks | **TruthfulQA generation** only until Gate 3 passes (full 817-question corpus, single split; HuggingFace labels `validation` by convention) |
+| Benchmarks | **Synthetic HMM sequences** for Gate 3 (rank correlation with known fractal dimension). TruthfulQA deferred to post-validation. |
 | Baselines | **None** until signal validated across architectures |
 | Package manager | **uv** exclusively. No pip fallback. Lockfile committed. |
 | Transformers | **~=4.57** pinned. Forward-replacement adapter is version-coupled. |
@@ -123,7 +125,7 @@ This is where the project stopped being "well-structured code" and started being
 - ParityConfig + ParityRecord types. Parity mode in InstrumentManager.
 - Recomputes fp32 softmax, transpose-then-reshape head merge, downcast through native o_proj, compare against native output newest-token slice. All metrics in fp32.
 - Pre-o_proj diagnostic: captures native attention output before projection for failure localization.
-- Gate 1 calibration: 2240 records. Frozen thresholds: cosine >= 0.999996, relative L2 <= 0.00276.
+- Gate 1 calibration: 2240 records. Frozen thresholds: cosine >= 0.999996, relative L2 <= 0.002759.
 - Gate 1 passes. Layer drift invariant holds.
 
 ### Gate 2 (PR #11)
