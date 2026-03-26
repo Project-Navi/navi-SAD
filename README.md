@@ -131,6 +131,8 @@ tests/
 | 3 (pilot) | Per-head PE structure on TruthfulQA (40 samples) | **Complete** — structural signal found, grand-mean dead |
 | 3 (full) | Rank correlation of per-head PE with known fractal dimension across synthetic HMM family | Planned |
 
+See [ROADMAP.md](ROADMAP.md) for the full research plan.
+
 ## License
 
 Apache-2.0. Copyright Project Navi LLC.
