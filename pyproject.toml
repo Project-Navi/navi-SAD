@@ -88,3 +88,6 @@ module = [
     "sklearn.*",
 ]
 ignore_missing_imports = true
+
+[dependency-groups]
+docs = ["zensical>=0.0.24"]

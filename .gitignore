@@ -13,8 +13,10 @@ htmlcov/
 .env.*
 *.gz
 results/
+site/
 
 # Plans, specs, prompts, and audit responses are local working docs, never committed
 docs/plans/
 docs/audit/
 docs/prompts/
+docs/internal/
