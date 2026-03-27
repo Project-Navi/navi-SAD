@@ -35,15 +35,19 @@ jobs:
           python3 -c "
           import os, re, sys
           site = 'site'
+          prefix = '/navi-SAD/'
           broken = []
           for root, dirs, files in os.walk(site):
               for f in files:
-                  if not f.endswith('.html'): continue
+                  if not f.endswith('.html') or f == '404.html': continue
                   path = os.path.join(root, f)
                   with open(path) as fh:
                       html = fh.read()
                   for m in re.finditer(r'href=\"(/[^\"#]+)\"', html):
-                      target = site + m.group(1)
+                      href = m.group(1)
+                      if href.startswith(prefix):
+                          href = '/' + href[len(prefix):]
+                      target = site + href
                       if target.endswith('/'): target += 'index.html'
                       if not os.path.exists(target):
                           broken.append(f'{path}: {m.group(1)}')
