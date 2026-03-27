@@ -166,6 +166,6 @@ Three repos. One state space. The distance between them is now smaller than the 
 
 - Shai, A. S., Marzen, S. E., Teixeira, L., Gietelink Oldenziel, A., & Riechers, P. M. (2024). Transformers Represent Belief State Geometry in their Residual Stream. *NeurIPS 2024*. [arXiv:2405.15943](https://arxiv.org/abs/2405.15943).
 - Rozenfeld, H. D., Havlin, S. & ben-Avraham, D. (2007). Fractal and transfractal recursive scale-free nets. *New Journal of Physics*, 9:175.
-- Bandt, C. & Pompe, B. (2002). Permutation Entropy: A Natural Complexity Measure for Time Series. *Physical Review Letters*, 88(17).
+- Bandt, C. & Pompe, B. (2002). Permutation Entropy: A Natural Complexity Measure for Time Series. *Physical Review Letters*, 88(17), 174102.
 - Han, D., et al. (2024). Bridging the Divide: Reconsidering Softmax and Linear Attention. [arXiv:2412.06590](https://arxiv.org/abs/2412.06590).
 - Spence, N. (2026). The Creative Determinant: Autopoietic Closure as a Nonlinear Elliptic Boundary Value Problem with Lean 4-Verified Existence Conditions. *Project Navi LLC*.

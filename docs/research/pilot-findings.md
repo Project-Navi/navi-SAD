@@ -28,7 +28,7 @@ We ran a 40-sample pilot on TruthfulQA using Mistral-7B-Instruct-v0.2 (fp16, eag
 
 **Grand-mean SAD does not separate groups.** *Falsified.* The gap between correct and incorrect grand-mean SAD is 0.006 on a ~0.30 baseline. This is noise. The "SAD detects confabulation as a scalar" idea is dead.
 
-Pooled PE tells the same story: ~0.98 for both groups, negligible gap. Averaging away the per-head structure destroys whatever signal exists.
+Pooled [permutation entropy (PE)](../theory/takens-embedding.md) tells the same story: ~0.98 for both groups, negligible gap. Averaging away the per-head structure destroys whatever signal exists.
 
 ## But we found something better
 
