@@ -193,6 +193,25 @@ These are not guidelines. They are requirements.
 - CI uses `uv sync --extra dev --locked` -- stale lockfile fails the build
 - Pre-commit hooks mirror CI: `uv run pre-commit install`
 
+### Docs
+The docs site uses [Zensical](https://zensical.org/) with Project Navi branding.
+
+```bash
+# Install docs dependencies
+uv sync --no-install-project --group docs
+
+# Local preview
+uv run zensical serve    # or: make docs-serve
+
+# Build static site
+uv run zensical build    # or: make docs-build
+```
+
+- `zensical.toml` -- site config (edit `[project]` table and `nav`)
+- `docs/` -- all published markdown content
+- `docs/stylesheets/navi.css` -- brand CSS (shared, don't edit per-project)
+- `.github/workflows/docs.yml` -- CI: build and deploy to GitHub Pages
+
 ### Quality
 - Ruff rules: E, F, I, W, B (bugbear), UP (pyupgrade), RUF, C4 (comprehensions)
 - Ruff pinned: `~=0.15.0`. Mypy pinned: `~=1.19.0`. Local and CI must match.
