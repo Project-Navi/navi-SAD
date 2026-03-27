@@ -20,7 +20,7 @@ This runs all tests tagged `@pytest.mark.gpu`, including Gates 0, 1, and 2.
 | Gate | What | Pass criterion |
 |------|------|---------------|
 | 0 | Non-interference | Bit-identical tokens and logits with/without instrumentation |
-| 1 | Parity | Cosine >= 0.999996, relative L2 <= 0.00276 (frozen thresholds) |
+| 1 | Parity | Cosine >= 0.999996, relative L2 <= 0.002759 (frozen thresholds) |
 | 2 | Stability | Zero VRAM creep over 50 generations (limit 16 MiB) |
 
 See the [Gate Discipline](../instrument/gate-discipline.md) section for the full methodology.

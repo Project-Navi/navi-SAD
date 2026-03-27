@@ -8,12 +8,12 @@
 | Quantization | **q8 minimum, fp16 only for gates** | Precision discipline |
 | Precision | **Native dtype inference, fp32 instrument branch** | No silent dtype coercion |
 | Capture boundary | **Post-RoPE Q/K/V** | Preferred; hidden-state fallback is Tier C |
-| Temporal features | **PE per-(layer, head) on first-differenced SAD** | Grand mean is dead; per-head is alive |
+| Temporal features | **[PE](../theory/takens-embedding.md) per-(layer, head) on first-differenced SAD** | Grand mean is dead; per-head is alive |
 | Registry scope | **Mistral only** | Until cross-family gates pass |
-| Benchmarks | **Synthetic HMM sequences** | Gate 3; TruthfulQA deferred to post-validation |
+| Benchmarks | **Synthetic HMM sequences** | [Gate 3](../instrument/gate-discipline.md); TruthfulQA deferred to post-validation |
 | Package manager | **uv** | No pip fallback; lockfile committed |
 | Transformers | **~=4.57 pinned** | Forward-replacement adapter is version-coupled |
-| Attention impl | **Eager only** | Non-negotiable for instrumented models |
+| Attention impl | **[Eager only](../instrument/adapter-discipline.md)** | Non-negotiable for instrumented models |
 | Model revision | **Pinned** in gate fixtures | Update only after re-validating gates |
 | Dataset revision | **Pinned** in pilot script (`741b8276...`) | Reproducibility |
 | Baselines | **None** | Until signal validated across architectures |

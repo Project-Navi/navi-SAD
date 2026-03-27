@@ -9,19 +9,19 @@ Terms used across the navi-SAD documentation. Definitions are project-specific w
 :   The rank-order permutations of consecutive values in a time series, introduced by Bandt & Pompe (2002). For embedding dimension D, there are D! possible patterns.
 
 **Belief state geometry**
-:   The geometric structure that transformers construct in their residual streams to represent probabilistic beliefs about hidden states. See Shai et al. (NeurIPS 2024).
+:   The geometric structure that transformers construct in their residual streams to represent probabilistic beliefs about hidden states. See Shai et al. (NeurIPS 2024) and the [three-repo unification](../research/three-repo-unification.md).
 
 **Cosine divergence**
 :   The cosine distance (1 - cosine similarity) between softmax and linear attention outputs for the same head. The core SAD measurement.
 
 **Delay-coordinate embedding**
-:   Reconstructing a dynamical system's state space from a single scalar time series by plotting each value against its time-delayed predecessors. Justified by Takens' embedding theorem (1981).
+:   Reconstructing a dynamical system's state space from a single scalar time series by plotting each value against its time-delayed predecessors. Justified by [Takens' embedding theorem](../theory/takens-embedding.md) (1981).
 
 **Epsilon-machine**
 :   The minimal unifilar hidden Markov model that generates a given process. From computational mechanics (Crutchfield & Young, 1989).
 
 **GQA (Grouped Query Attention)**
-:   An attention variant where multiple query heads share key-value heads. Mistral-7B uses GQA (32 query heads, 8 KV heads). SAD expands KV heads to match query heads before computing divergence.
+:   An attention variant where multiple query heads share key-value heads. Mistral-7B uses GQA (32 query heads, 8 KV heads). The [adapter](../instrument/adapter-discipline.md) expands KV heads to match query heads before computing divergence.
 
 **Non-unifilar**
 :   A hidden Markov model where the current observation does not uniquely determine the hidden state transition. Non-unifilar processes have fractal belief state geometry.

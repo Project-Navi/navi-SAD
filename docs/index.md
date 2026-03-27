@@ -26,11 +26,11 @@ Runs softmax and linear attention in parallel on the same frozen weights, measur
 | 0 | Non-interference --- identical tokens + logits with/without hooks | **Pass** | 2026-03-24 |
 | 1 | Parity --- recomputed fp32 softmax through o_proj matches native | **Pass** | 2026-03-24 |
 | 2 | Stability --- 50 generations, zero VRAM creep | **Pass** | 2026-03-24 |
-| 3 | Rank correlation --- per-head PE vs known fractal dimension | In progress | --- |
+| 3 | Rank correlation --- per-head permutation entropy (PE) vs known fractal dimension | In progress | --- |
 
 ## What's New
 
-**2026-03-25** --- [Pilot findings published](research/pilot-findings.md). Grand mean dead. Per-head PE alive. Gate 3 redesigned.
+**2026-03-25** --- [Pilot findings published](research/pilot-findings.md). Grand mean dead. Per-head permutation entropy (PE) alive. Gate 3 redesigned.
 
 **2026-03-24** --- [Gate 2 passes](instrument/gate-2.md). 50 consecutive generations, zero VRAM creep.
 
@@ -46,4 +46,5 @@ Runs softmax and linear attention in parallel on the same frozen weights, measur
 | [Theory](theory/sad-instrument.md) | What SAD measures and why --- Takens' embedding, capacity gap, adjacent literature |
 | [Instrument](instrument/gate-discipline.md) | Gate discipline, validation proofs, adapter rules |
 | [Research](research/pilot-findings.md) | Pilot findings, roadmap, open problems |
+| [How-To](how-to/contributing.md) | Contributing guide |
 | [Reference](reference/module-reference.md) | Module reference, frozen decisions, glossary, changelog |
