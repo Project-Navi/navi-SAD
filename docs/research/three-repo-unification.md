@@ -48,9 +48,9 @@ The proof establishes: vertex count recurrence, hub distance $L_g = u^g$, two-si
 
 ---
 
-## The bridge: Shai et al. (NeurIPS 2024)
+## The bridge: Shai et al. ([arXiv:2405.15943](https://arxiv.org/abs/2405.15943))
 
-The theoretical anchor connecting these layers is Shai et al., "Transformers Represent Belief State Geometry in their Residual Stream" (NeurIPS 2024). Their key results:
+The theoretical anchor connecting these layers is Shai et al., "Transformers Represent Belief State Geometry in their Residual Stream" ([arXiv:2405.15943](https://arxiv.org/abs/2405.15943)). Their key results:
 
 1. **Transformers construct belief state geometry in their residual streams.** The belief state --- the posterior distribution over hidden states given the observed sequence --- is linearly recoverable from transformer hidden states. The geometry is real, not hypothetical.
 
@@ -58,7 +58,7 @@ The theoretical anchor connecting these layers is Shai et al., "Transformers Rep
 
 3. **The fractal dimension depends on the generating process.** Unifilar processes produce point attractors (trivial geometry). Non-unifilar processes produce attractors whose fractal dimension is determined by the process structure.
 
-4. **Layers progressively construct this geometry.** Early layers have partial, noisy representations; later layers have more fully constructed belief state geometry. *[Predicted to be testable with existing pilot data via layer-stratified PE profiles. Not yet tested.]*
+4. **Geometry is distributed across layers.** Shai et al. find that belief state geometry is "represented in the final residual stream or distributed across the residual streams of multiple layers." The mechanism of this distribution is analyzed in the companion work (Piotrowski et al., NeurIPS 2024). *[Whether this produces progressive depth-increasing separation in per-head PE is testable with existing pilot data. Not yet tested.]*
 
 ---
 

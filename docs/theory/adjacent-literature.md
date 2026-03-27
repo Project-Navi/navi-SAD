@@ -24,7 +24,7 @@ The approaches below fall into roughly three categories: **representation decomp
 
 **What it does.** Anthropic's circuit tracing replaces a model's MLPs with cross-layer transcoders to build "attribution graphs" --- directed graphs where nodes are sparse features and edges represent causal influence between them for a specific prompt. The method traces the chain of intermediate steps from input features through hidden features to the output logit, providing per-prompt mechanistic explanations. Published in March 2025 on Claude 3.5 Haiku ([Anthropic, 2025](https://transformer-circuits.pub/2025/attribution-graphs/methods.html); companion paper: [On the Biology of a Large Language Model](https://transformer-circuits.pub/2025/attribution-graphs/biology.html)).
 
-**The coverage limitation.** The authors state that attribution graphs "provide us with satisfying insight for about a quarter of the prompts we've tried." Each graph is an execution trace for a single prompt --- it shows how the model computes a specific output, not how it computes outputs in general. The method cannot explain how attention patterns are formed (QK-circuits are frozen during analysis), making it "essentially useless" for attention-dependent computations like induction heads. Graph completeness averages 0.80 (80% of important inputs explained by features rather than error nodes); graph replacement scores average 0.61.
+**The coverage limitation.** The authors state that attribution graphs "provide us with satisfying insight for about a quarter of the prompts we've tried." Each graph is an execution trace for a single prompt --- it shows how the model computes a specific output, not how it computes outputs in general. The method cannot explain how attention patterns are formed (QK-circuits are frozen during analysis), which the authors note "prevents us from understanding a variety of behaviors that hinge on the model 'fetching' a piece of information from earlier in the context." Graph completeness averages 0.80 (80% of important inputs explained by features rather than error nodes); graph replacement scores average 0.61.
 
 **The NP-hardness result.** Independently, Adolfi, Vilas, & Wareham (ICLR 2025 Spotlight, [arXiv:2410.08025](https://arxiv.org/abs/2410.08025)) proved that many circuit discovery queries are NP-hard and remain fixed-parameter intractable relative to model and circuit features. The problems are inapproximable under additive, multiplicative, and probabilistic approximation schemes. This establishes a theoretical ceiling on what circuit-finding methods can guarantee.
 
@@ -36,7 +36,7 @@ The approaches below fall into roughly three categories: **representation decomp
 
 ## 3. EigenTrack (Ettori et al., 2025)
 
-**What it does.** EigenTrack ([arXiv:2509.15735](https://arxiv.org/abs/2509.15735)) constructs sliding-window activation matrices from hidden states during generation, extracts covariance-spectrum statistics (leading eigenvalues, spectral gaps, spectral entropy, KL divergence from the Marchenko-Pastur random matrix baseline), and feeds these into a lightweight recurrent classifier. The classifier tracks temporal shifts in representation structure, signaling hallucination and OOD drift. It achieves 0.82--0.94 AUROC for hallucination detection and 0.85--0.96 for OOD detection across LLMs and VLMs, operating on a single forward pass without resampling.
+**What it does.** EigenTrack ([arXiv:2509.15735](https://arxiv.org/abs/2509.15735)) constructs sliding-window activation matrices from hidden states during generation, extracts covariance-spectrum statistics (leading eigenvalues, spectral gaps, spectral entropy, KL divergence from the Marchenko-Pastur random matrix baseline), and feeds these into a lightweight recurrent classifier. The classifier tracks temporal shifts in representation structure, signaling hallucination and OOD drift. The authors report AUROC ranges across model families (LLaMA, Qwen, Mistral, LLaVa) and benchmarks, operating on a single forward pass without resampling.
 
 **Limitation.** Requires training a supervised recurrent classifier on labeled hallucination/OOD data. The covariance-spectrum statistics are computed over hidden state activations aggregated across positions --- they do not provide per-head resolution. The classifier is model- and task-specific; generalization to new models or task distributions requires retraining.
 
@@ -90,9 +90,9 @@ The approaches below fall into roughly three categories: **representation decomp
 
 ---
 
-## 8. Verbal Uncertainty Mismatch (Ji et al., EMNLP 2025)
+## 8. Verbal Uncertainty Mismatch (Ji et al., 2025)
 
-**What it does.** Ji et al. (EMNLP 2025, [arXiv:2503.14477](https://arxiv.org/abs/2503.14477)) discovered that "verbal uncertainty" --- how confidently a model expresses itself --- is governed by a single linear feature in the model's representation space, and that this feature has only moderate correlation with the model's actual semantic uncertainty. The mismatch between high semantic uncertainty and low verbal uncertainty (i.e., the model is unsure but speaks assertively) is a better predictor of hallucination than semantic uncertainty alone. By intervening on the verbal uncertainty feature at inference time, they reduce confident hallucinations by approximately 30%.
+**What it does.** Ji et al. ([arXiv:2503.14477](https://arxiv.org/abs/2503.14477)) report that "verbal uncertainty" --- how confidently a model expresses itself --- is governed by a single linear feature in the model's representation space, and that this feature has only moderate correlation with the model's actual semantic uncertainty. The mismatch between high semantic uncertainty and low verbal uncertainty (i.e., the model is unsure but speaks assertively) is a better predictor of hallucination than semantic uncertainty alone. By intervening on the verbal uncertainty feature at inference time, they reduce confident hallucinations by approximately 30%.
 
 **Limitation.** Requires computing semantic uncertainty (which itself requires multiple generations or a trained probe) to detect the mismatch. The intervention modifies model behavior rather than just observing it. The verbal uncertainty feature is identified per model --- it is not guaranteed to transfer across architectures.
 
@@ -141,7 +141,7 @@ SAD occupies this gap. It treats each attention head's softmax-linear divergence
 | ITI | Li et al., 2023 ([arXiv:2306.03341](https://arxiv.org/abs/2306.03341)) | Inference-time truthfulness intervention |
 | Geometry of truth | Marks & Tegmark, COLM 2024 ([arXiv:2310.06824](https://arxiv.org/abs/2310.06824)) | Linear truth structure in LLM representations |
 | NUP | 2026 ([arXiv:2603.19562](https://arxiv.org/abs/2603.19562)) | Prompt-gradient uncertainty bound |
-| Verbal uncertainty | Ji et al., EMNLP 2025 ([arXiv:2503.14477](https://arxiv.org/abs/2503.14477)) | Semantic-verbal uncertainty mismatch |
+| Verbal uncertainty | Ji et al., [arXiv:2503.14477](https://arxiv.org/abs/2503.14477) | Semantic-verbal uncertainty mismatch |
 | Capacity gap | Han et al., NeurIPS 2024 ([arXiv:2412.06590](https://arxiv.org/abs/2412.06590)) | Softmax injective, linear attention not |
 | Belief state geometry | Shai et al., NeurIPS 2024 ([arXiv:2405.15943](https://arxiv.org/abs/2405.15943)) | Fractal belief state structure in residual streams |
 | Mech interp outlook | Nanda, 80,000 Hours podcast, Sept 2025 ([link](https://80000hours.org/podcast/episodes/neel-nanda-mechanistic-interpretability/)) | "The most ambitious vision... is probably dead" |

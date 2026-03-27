@@ -70,7 +70,7 @@ Manual labels (3-reviewer majority vote, 92% unanimous) are canonical for all pi
 
 **SAD is not a truth detector.** *Frozen decision.* It is a dynamical systems probe that reconstructs per-head attractor structure via [delay-coordinate embedding](../theory/takens-embedding.md).
 
-The theoretical anchor is Shai et al. (NeurIPS 2024): transformers construct belief state geometry in their residual streams, and that geometry can be genuinely fractal for non-unifilar inference processes. The pilot's per-head PE asymmetry is consistent with this --- correct generations requiring the model to track more complex belief states, producing richer attractor dynamics in the heads that participate in that tracking.
+The theoretical anchor is Shai et al. ([arXiv:2405.15943](https://arxiv.org/abs/2405.15943)): transformers construct belief state geometry in their residual streams, and that geometry can be genuinely fractal for non-unifilar inference processes. The pilot's per-head PE asymmetry is consistent with this --- correct generations requiring the model to track more complex belief states, producing richer attractor dynamics in the heads that participate in that tracking.
 
 But consistency is not evidence. The pilot is underpowered (n=9 incorrect), exploratory (no pre-registered hypotheses), and subject to multiple-comparison concerns (1024 heads times multiple modes and segments).
 

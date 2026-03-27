@@ -9,7 +9,7 @@ Terms used across the navi-SAD documentation. Definitions are project-specific w
 :   The rank-order permutations of consecutive values in a time series, introduced by Bandt & Pompe (2002). For embedding dimension D, there are D! possible patterns.
 
 **Belief state geometry**
-:   The geometric structure that transformers construct in their residual streams to represent probabilistic beliefs about hidden states. See Shai et al. (NeurIPS 2024) and the [three-repo unification](../research/three-repo-unification.md).
+:   The geometric structure that transformers construct in their residual streams to represent probabilistic beliefs about hidden states. See Shai et al. ([arXiv:2405.15943](https://arxiv.org/abs/2405.15943)) and the [three-repo unification](../research/three-repo-unification.md).
 
 **Cosine divergence**
 :   The cosine distance (1 - cosine similarity) between softmax and linear attention outputs for the same head. The core SAD measurement.

@@ -93,7 +93,7 @@ The first-differencing step removes the [position confound](../research/pilot-fi
 
 This is what the pilot measured. The result --- [338/1024 heads with |Cohen's d| > 0.5](../research/pilot-findings.md#per-head-pe-on-first-differenced-sad-is-the-strongest-signal), correct generations showing more complex dynamics than incorrect --- is consistent with the Takens framing but does not prove it. [Gate 3](../instrument/gate-discipline.md) is designed to test whether per-head PE actually tracks attractor complexity using synthetic processes with known dynamical structure.
 
-## Belief state geometry (Shai et al., NeurIPS 2024)
+## Belief state geometry (Shai et al., [arXiv:2405.15943](https://arxiv.org/abs/2405.15943))
 
 *Status: Established (external). Connection to SAD is theoretically motivated, not yet empirically tested.*
 

@@ -27,7 +27,7 @@ Han et al. (2024, arXiv:2412.06590) prove that softmax attention is injective (d
 - D2HScore (Ding et al., 2025): low dispersion and drift in internal representations characterize hallucinated content.
 - EigenTrack (arXiv:2509.15735, 2025): hallucinated sequences produce flatter, more dispersed attention spectra closer to the noise baseline.
 - Neural Uncertainty Principle (arXiv:2603.19562, 2026): formalizes that weak prompt-gradient coupling indicates hallucination risk.
-- Verbal uncertainty mismatch (EMNLP 2025, arXiv:2503.14477): the gap between high semantic uncertainty and low verbal uncertainty predicts hallucinations -- LLMs are overconfident when hallucinating.
+- Verbal uncertainty mismatch (arXiv:2503.14477): the gap between high semantic uncertainty and low verbal uncertainty predicts hallucinations -- LLMs are overconfident when hallucinating.
 
 **What is novel:** No published method runs two attention mechanisms in parallel on the same frozen weights as a dynamical systems probe. SAD combines known ingredients (linear attention, cosine divergence, delay-coordinate embedding via ordinal patterns) in a new configuration. The Takens framing -- treating per-head SAD as an attractor reconstruction rather than a scalar diagnostic -- is the theoretical contribution.
 

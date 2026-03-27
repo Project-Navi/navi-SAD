@@ -42,7 +42,7 @@ Sweep embedding dimension D from 3 to 4 on the 40-sample pilot records. Under th
 
 *No GPU needed. Existing artifacts.*
 
-Plot per-layer PE separation (correct vs incorrect) from L0 to L31. This tests the progressive construction prediction from Shai et al. (NeurIPS 2024): if later layers have more fully constructed belief state geometry, correct/incorrect separation should grow with depth.
+Plot per-layer PE separation (correct vs incorrect) from L0 to L31. Shai et al. ([arXiv:2405.15943](https://arxiv.org/abs/2405.15943)) find that belief state geometry is "represented in the final residual stream or distributed across the residual streams of multiple layers." The companion work (Piotrowski et al., NeurIPS 2024) analyzes the mechanism of this distribution. If later layers have more fully constructed geometry, correct/incorrect PE separation should grow with depth.
 
 **Why it matters:** If separation grows from early to late layers, it is convergent evidence that SAD observes belief state geometry being constructed layer by layer. If separation concentrates in L15--21, it matches both the pilot's recurring-head zone and the progressive construction prediction. If separation is flat, the progressive construction story does not apply to this observable.
 
