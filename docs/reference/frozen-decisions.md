@@ -14,4 +14,7 @@
 | Package manager | **uv** | No pip fallback; lockfile committed |
 | Transformers | **~=4.57 pinned** | Forward-replacement adapter is version-coupled |
 | Attention impl | **Eager only** | Non-negotiable for instrumented models |
+| Model revision | **Pinned** in gate fixtures | Update only after re-validating gates |
+| Dataset revision | **Pinned** in pilot script (`741b8276...`) | Reproducibility |
+| Baselines | **None** | Until signal validated across architectures |
 | License | **Apache-2.0** | Copyright Project Navi LLC |
