@@ -100,4 +100,4 @@ The [pilot findings](../research/pilot-findings.md) show that the interesting si
 
 **References**
 
-- Han, D., Pan, X., Han, Y., Song, S., & Huang, G. (2024). Bridging the Divide: Reconsidering Softmax and Linear Attention. In *Advances in Neural Information Processing Systems* (NeurIPS 2024). [arXiv:2412.06590](https://arxiv.org/abs/2412.06590).
+- Han, D., Ye, Y., Xia, Z., Han, Y., Pan, X., Li, X., Lu, J., Song, S., & Huang, G. (2024). Bridging the Divide: Reconsidering Softmax and Linear Attention. In *Advances in Neural Information Processing Systems* (NeurIPS 2024). [arXiv:2412.06590](https://arxiv.org/abs/2412.06590).

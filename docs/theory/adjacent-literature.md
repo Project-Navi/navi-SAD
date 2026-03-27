@@ -144,4 +144,4 @@ SAD occupies this gap. It treats each attention head's softmax-linear divergence
 | Verbal uncertainty | Ji et al., [arXiv:2503.14477](https://arxiv.org/abs/2503.14477) | Semantic-verbal uncertainty mismatch |
 | Capacity gap | Han et al., NeurIPS 2024 ([arXiv:2412.06590](https://arxiv.org/abs/2412.06590)) | Softmax injective, linear attention not |
 | Belief state geometry | Shai et al., NeurIPS 2024 ([arXiv:2405.15943](https://arxiv.org/abs/2405.15943)) | Fractal belief state structure in residual streams |
-| Mech interp outlook | Nanda, 80,000 Hours podcast, Sept 2025 ([link](https://80000hours.org/podcast/episodes/neel-nanda-mechanistic-interpretability/)) | "The most ambitious vision... is probably dead" |
+| Mech interp outlook | Nanda, 80,000 Hours podcast, 2025 ([link](https://80000hours.org/podcast/episodes/neel-nanda-mechanistic-interpretability/)) | Reassessment of mechanistic interpretability ambitions |
