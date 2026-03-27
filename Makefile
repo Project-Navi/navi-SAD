@@ -1,4 +1,4 @@
-.PHONY: test test-gpu lint format typecheck all
+.PHONY: test test-gpu lint format typecheck all docs-serve docs-build
 
 test:
 	uv run pytest tests/ -m "not gpu" -v --tb=short
@@ -16,3 +16,9 @@ typecheck:
 	uv run mypy src/
 
 all: lint format typecheck test
+
+docs-serve:
+	uv run zensical serve
+
+docs-build:
+	uv run zensical build
