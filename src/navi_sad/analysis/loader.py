@@ -8,9 +8,11 @@ instead of silently subsetting.
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
+
+from navi_sad.core.types import StepRecord
 
 
 @dataclass(frozen=True)
@@ -22,7 +24,7 @@ class AnalysisInput:
 
     labels: dict[int, str]
     token_counts: dict[int, int]
-    per_step_data: dict[int, list[dict[str, Any]]]
+    per_step_data: dict[int, list[StepRecord]]
     n_correct: int
     n_incorrect: int
     samples_path: str
@@ -32,21 +34,22 @@ class AnalysisInput:
 _PER_STEP_REQUIRED_KEYS = {"step_idx", "layer_idx", "per_head_delta"}
 
 
-def _validate_per_step_records(
-    per_step_data: dict[int, list[dict[str, Any]]],
-) -> None:
-    """Validate per-step record shape at the load boundary.
+def _parse_per_step_records(
+    raw_per_step: dict[int, list[dict[str, Any]]],
+) -> dict[int, list[StepRecord]]:
+    """Validate and parse per-step dicts into StepRecord objects.
 
-    Each per-step record must have step_idx (int), layer_idx (int),
-    and per_head_delta (list of numbers). Rejects malformed records
-    here instead of relying on downstream parse failure.
+    Terminates the raw JSON boundary: after this function, all per-step
+    data is typed. Extra keys in the raw dicts are dropped.
 
     Raises:
         ValueError: If any record is missing required keys or has wrong types.
     """
-    for idx, records in per_step_data.items():
+    parsed: dict[int, list[StepRecord]] = {}
+    for idx, records in raw_per_step.items():
         if not isinstance(records, list):
             raise ValueError(f"Sample {idx}: per_step must be a list, got {type(records).__name__}")
+        sample_records: list[StepRecord] = []
         for i, rec in enumerate(records):
             if not isinstance(rec, dict):
                 raise ValueError(
@@ -77,6 +80,16 @@ def _validate_per_step_records(
                         f"Sample {idx}, record {i}: per_head_delta[{j}] must be "
                         f"numeric, got {type(delta).__name__}: {delta!r}"
                     )
+            # Parse to typed StepRecord — boundary terminates here
+            sample_records.append(
+                StepRecord(
+                    step_idx=rec["step_idx"],
+                    layer_idx=rec["layer_idx"],
+                    per_head_delta=rec["per_head_delta"],
+                )
+            )
+        parsed[idx] = sample_records
+    return parsed
 
 
 def load_and_validate(
@@ -143,11 +156,11 @@ def load_and_validate(
 
     labels = {s["dataset_index"]: labels_raw[s["dataset_index"]] for s in included}
     token_counts = {s["dataset_index"]: s["generated_token_count"] for s in included}
-    per_step_data = {s["dataset_index"]: s["per_step"] for s in included}
+    raw_per_step = {s["dataset_index"]: s["per_step"] for s in included}
 
-    # Validate per-step record shape at the boundary.
-    # Reject malformed records here instead of relying on downstream parse failure.
-    _validate_per_step_records(per_step_data)
+    # Parse per-step dicts to typed StepRecord objects at the boundary.
+    # Validates shape + types and terminates the raw JSON boundary.
+    per_step_data = _parse_per_step_records(raw_per_step)
 
     n_correct = sum(1 for v in labels.values() if v == "correct")
     n_incorrect = sum(1 for v in labels.values() if v == "incorrect")
@@ -161,3 +174,12 @@ def load_and_validate(
         samples_path=str(samples_path),
         review_path=str(review_path),
     )
+
+
+def step_records_to_dicts(records: list[StepRecord]) -> list[dict[str, Any]]:
+    """Convert typed StepRecords back to dicts for PE API calls.
+
+    The PE module's extract_head_sad_series accepts list[dict[str, Any]].
+    This explicit conversion bridges the typed boundary with the existing API.
+    """
+    return [asdict(r) for r in records]

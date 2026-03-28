@@ -11,6 +11,7 @@ import json
 import pytest
 
 from navi_sad.analysis.loader import AnalysisInput, load_and_validate
+from navi_sad.core.types import StepRecord
 
 
 def _write_artifacts(
@@ -214,3 +215,39 @@ class TestLoadAndValidate:
         result = load_and_validate(Path(str(d)))
         assert "samples.json" in result.samples_path
         assert "review.json" in result.review_path
+
+    def test_per_step_parsed_to_step_records(self, tmp_path: object) -> None:
+        """Per-step data must be parsed to StepRecord, not left as raw dicts."""
+        s = _make_sample(1)
+        s["per_step"] = [
+            {"step_idx": 0, "layer_idx": 0, "per_head_delta": [0.1, 0.2]},
+            {"step_idx": 0, "layer_idx": 1, "per_head_delta": [0.3, 0.4]},
+        ]
+        samples = [s]
+        reviews = [_make_review(1, human_label="correct")]
+        d = _write_artifacts(tmp_path, samples, reviews)
+        from pathlib import Path
+
+        result = load_and_validate(Path(str(d)))
+        records = result.per_step_data[1]
+        assert len(records) == 2
+        assert isinstance(records[0], StepRecord)
+        assert records[0].step_idx == 0
+        assert records[0].layer_idx == 0
+        assert records[0].per_head_delta == [0.1, 0.2]
+
+    def test_step_record_extra_keys_ignored(self, tmp_path: object) -> None:
+        """Extra keys in per-step dicts are dropped during StepRecord parsing."""
+        s = _make_sample(1)
+        s["per_step"] = [
+            {"step_idx": 0, "layer_idx": 0, "per_head_delta": [0.1], "extra": "ignored"},
+        ]
+        samples = [s]
+        reviews = [_make_review(1, human_label="correct")]
+        d = _write_artifacts(tmp_path, samples, reviews)
+        from pathlib import Path
+
+        result = load_and_validate(Path(str(d)))
+        rec = result.per_step_data[1][0]
+        assert isinstance(rec, StepRecord)
+        assert not hasattr(rec, "extra")

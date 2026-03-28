@@ -409,6 +409,13 @@ class TestComputeCohensD:
         assert reason is not None
         assert "variance" in reason
 
+    def test_near_zero_variance_returns_none(self) -> None:
+        """Near-zero pooled variance must return None, not huge d."""
+        eps = 1e-16
+        value, reason = compute_cohens_d([0.5, 0.5 + eps], [0.5, 0.5 + eps])
+        assert value is None
+        assert reason is not None
+
     def test_minimum_valid_size(self) -> None:
         """Two samples per group is the minimum."""
         value, reason = compute_cohens_d([1.0, 2.0], [3.0, 4.0])

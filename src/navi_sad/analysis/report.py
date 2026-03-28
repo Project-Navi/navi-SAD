@@ -121,6 +121,32 @@ def format_markdown(
     lines.append(f"- Null range: [{null_7.null_min}, {null_7.null_max}]")
     lines.append("")
 
+    # D landscape
+    if report.d_landscape is not None:
+        dl = report.d_landscape
+        lines.append("## D-Value Landscape\n")
+        lines.append(
+            f"- **Grid:** {dl.expected_total_cells} expected cells, "
+            f"{dl.present_cells} present, {dl.absent_cells} absent"
+        )
+        if dl.max_abs_d is not None:
+            lines.append(f"- **Max |d|:** {dl.max_abs_d:.4f}")
+            lines.append(f"- **Mean |d|:** {dl.mean_abs_d:.4f}")
+            lines.append(f"- **Median |d|:** {dl.median_abs_d:.4f}")
+            lines.append(
+                f"- **Direction:** {dl.n_positive} positive, "
+                f"{dl.n_negative} negative, {dl.n_zero} zero"
+            )
+            if dl.positive_fraction is not None:
+                lines.append(f"- **Positive fraction:** {dl.positive_fraction:.3f}")
+            lines.append("")
+            lines.append("### Threshold Sweep\n")
+            lines.append("| Threshold | Cells exceeding |")
+            lines.append("|-----------|----------------|")
+            for t_str in sorted(dl.threshold_sweep, key=float):
+                lines.append(f"| |d| > {t_str} | {dl.threshold_sweep[t_str]} |")
+        lines.append("")
+
     # Caveats
     lines.append("## Caveats\n")
     lines.append(

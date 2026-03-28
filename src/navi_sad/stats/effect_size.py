@@ -11,6 +11,10 @@ import math
 # (float, None) when valid. (None, "reason string") when invalid.
 GuardedStat = tuple[float | None, str | None]
 
+# Near-zero variance guard. Pooled variance below this threshold
+# produces numerically unstable d values and is treated as degenerate.
+POOLED_VAR_EPS = 1e-12
+
 
 def compute_cohens_d(
     group_a: list[float],
@@ -19,7 +23,7 @@ def compute_cohens_d(
     """Compute Cohen's d with validity guards.
 
     Returns (d, None) when valid, (None, reason) when invalid.
-    Requires >= 2 samples per group and nonzero pooled variance.
+    Requires >= 2 samples per group and pooled variance > POOLED_VAR_EPS.
     """
     if len(group_a) < 2:
         return (None, f"group_a has < 2 samples (n={len(group_a)})")
@@ -36,8 +40,8 @@ def compute_cohens_d(
     n_b = len(group_b)
     pooled_var = ((n_a - 1) * var_a + (n_b - 1) * var_b) / (n_a + n_b - 2)
 
-    if pooled_var == 0.0:
-        return (None, "pooled variance is zero")
+    if pooled_var <= POOLED_VAR_EPS:
+        return (None, f"pooled variance too small ({pooled_var:.2e} <= {POOLED_VAR_EPS:.0e})")
 
     d = (mean_a - mean_b) / math.sqrt(pooled_var)
     return (d, None)
