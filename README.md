@@ -133,6 +133,12 @@ tests/
 
 See [ROADMAP.md](ROADMAP.md) for the full research plan.
 
+## Documentation
+
+Full documentation: [project-navi.github.io/navi-SAD](https://project-navi.github.io/navi-SAD/)
+
+Theory, instrument validation, pilot findings, open problems, glossary, and module reference.
+
 ## License
 
 Apache-2.0. Copyright Project Navi LLC.
