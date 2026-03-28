@@ -9,6 +9,7 @@ from __future__ import annotations
 from navi_sad.analysis.loader import AnalysisInput
 from navi_sad.analysis.report import build_provenance, format_markdown
 from navi_sad.analysis.types import (
+    DLandscape,
     EligibilityCell,
     EligibilityTable,
     PermutationNullConfig,
@@ -54,6 +55,23 @@ def _make_report() -> RecurrenceNullReport:
         ),
         bin_boundaries=[100],
         bin_counts={"0": {"correct": 3, "incorrect": 1}},
+        d_landscape=DLandscape(
+            expected_total_cells=1200,
+            present_cells=1000,
+            absent_cells=200,
+            n_computable=980,
+            n_none=20,
+            n_positive=200,
+            n_negative=780,
+            n_zero=0,
+            positive_fraction=0.204,
+            max_abs_d=0.58,
+            mean_abs_d=0.134,
+            median_abs_d=0.123,
+            p95_abs_d=0.294,
+            p99_abs_d=0.364,
+            threshold_sweep={"0.1": 730, "0.2": 288, "0.5": 1},
+        ),
     )
 
 
@@ -122,15 +140,66 @@ class TestFormatMarkdown:
         assert "Small n" in md
         assert "Transform-family dependence" in md
 
+    def test_d_landscape_section_present(self) -> None:
+        """D-Value Landscape section renders when d_landscape is set."""
+        report = _make_report()
+        prov = {"pe_config": {}, "n_correct": 5, "n_incorrect": 3}
+        md = format_markdown(report, prov)
+        assert "## D-Value Landscape" in md
+        assert "1200 expected cells" in md
+        assert "1000 present" in md
+        assert "200 absent" in md
+        assert "0.5800" in md  # max |d|
+        assert "Threshold Sweep" in md
+        assert "|d| > 0.1" in md
+
+    def test_d_landscape_absent_when_none(self) -> None:
+        """No D-Value Landscape section when d_landscape is None."""
+        report = RecurrenceNullReport(
+            config=PermutationNullConfig(n_permutations=10),
+            eligibility=None,
+            observed=RecurrenceStatistic(0.5, 3, 0, 1, {(0, 0): 0}),
+            observed_profile=RecurrenceProfile({1: 0}),
+            null_at_min_combos=PermutationNullResult(
+                observed=0,
+                null_counts=[0],
+                p_value=1.0,
+                expected_under_null=0.0,
+                null_mean=0.0,
+                null_std=0.0,
+                null_min=0,
+                null_max=0,
+                null_percentiles={50: 0},
+            ),
+            null_at_seven=PermutationNullResult(
+                observed=0,
+                null_counts=[0],
+                p_value=1.0,
+                expected_under_null=0.0,
+                null_mean=0.0,
+                null_std=0.0,
+                null_min=0,
+                null_max=0,
+                null_percentiles={50: 0},
+            ),
+            bin_boundaries=[],
+            bin_counts={},
+            d_landscape=None,
+        )
+        prov = {"pe_config": {}, "n_correct": 0, "n_incorrect": 0}
+        md = format_markdown(report, prov)
+        assert "D-Value Landscape" not in md
+
     def test_required_headings(self) -> None:
         report = _make_report()
-        prov = {"pe_config": {}}
+        prov = {"pe_config": {}, "n_correct": 5, "n_incorrect": 3}
         md = format_markdown(report, prov)
         for heading in [
             "Eligibility",
             "Observed Recurrence",
             "Recurrence Profile",
             "Permutation Null Test",
+            "D-Value Landscape",
             "Caveats",
             "Provenance",
         ]:
