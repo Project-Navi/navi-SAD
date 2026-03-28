@@ -8,19 +8,18 @@ Spectral Attention Divergence (SAD): a dynamical systems probe for LLM inference
 
 **This is a research harness, not a product. The instrument can lie. Every claim requires evidence.**
 
-## Current State (2026-03-25)
+## Current State (2026-03-28)
 
-Milestone C complete. Gates 0, 1, 2 pass on Mistral-7B. Gate 3 pilot complete (40 samples, manually labeled). PE feature layer built. 249 tests (237 CPU + 12 GPU). See [ROADMAP.md](ROADMAP.md) for research priorities.
+Milestone C complete. Gates 0, 1, 2 pass on Mistral-7B. Gate 3 pilot complete (40 samples) + 400-sample replication run. Analysis module built (PRs #28, #29). Confound controls built (PR #31). PE recurrence null run — count statistic dead at |d|>0.5. Dense-small d-landscape observed (mean |d|=0.134, 83.4% negative); confound control machinery built, not yet run on data. 401 CPU + 12 GPU = 413 tests. See [ROADMAP.md](ROADMAP.md) for research priorities.
 
 ### Pilot findings (characterization, not evidential)
 
-The 40-sample pilot falsified the naive hypothesis and produced one result worth pursuing:
+The 40-sample pilot falsified the naive hypothesis. The 400-sample replication killed the recurrence count and revealed a dense-small d-landscape:
 
 - **Grand-mean SAD does not separate groups.** 0.006 gap on ~0.30 baseline. Dead.
-- **Per-(layer, head) mean delta has structure.** Leading-span scalar: 294/1024 heads with |d|>0.5. Late layers flip sign.
-- **Per-head PE on first-differenced SAD is the strongest signal.** 338/1024 heads show |d|>0.5 across 3+ (mode, segment) combinations. Directional asymmetry: 4.6:1 positive (correct = more complex dynamics, incorrect = more stereotyped). Cross-mode recurrence across raw, diff, and residual.
-- **Position confound confirmed.** Both groups climb from ~0.24 to ~0.40 over generation. First-differencing removes the trend but signal persists.
-- **Shadow scorer dead.** 10% agreement. Manual labels (3-reviewer majority vote, 92% unanimous) are canonical.
+- **Per-head PE recurrence at |d|>0.5: dead.** 40-sample pilot found 342/1024 heads with |d|>0.5 in 3+ combos. Permutation null: p=0.25 (not significant). 400-sample replication: zero recurring heads. The count was small-n inflation at n=9 incorrect.
+- **Dense-small d-landscape observed (unvalidated).** At 400 samples (282 correct, 68 incorrect): max |d|=0.58, mean |d|=0.134, 83.4% negative d (incorrect PE > correct PE). Direction reversed from pilot's 4.6:1 positive. This is an observed pattern, not a validated result — no null test for the directional asymmetry has been run. Confounds (generation length, label noise) are uncontrolled.
+- **Shadow scorer dead.** 10% agreement (40-sample), 18.5% agreement (400-sample). Manual labels are canonical.
 
 **Hypothesis revised:** SAD is not a truth detector. It is a dynamical systems probe that reconstructs per-head attractor structure. The theoretical anchor is Shai et al. (NeurIPS 2024, arXiv:2405.15943): transformers construct belief state geometry in their residual streams, and that geometry can be genuinely fractal for non-unifilar inference processes. Gate 3 tests whether per-head PE tracks the computational-mechanical complexity of the inference problem, using synthetic HMM benchmarks with known fractal dimensions.
 
@@ -38,42 +37,66 @@ The 40-sample pilot falsified the naive hypothesis and produced one result worth
 - `signal/aggregation.py` -- uniform-mean aggregation, fail-closed on step_idx gaps
 - `signal/types.py` -- OrdinalResult, DerivedSampleRecord dataclasses
 - `pilot/schema.py` -- Typed write-side schema: frozen PilotSampleRecord, PilotReviewRecord, PilotMetadata dataclasses with __post_init__ enum validation. Label, DisagreementCategory, StopReason, SpanStopReason enums. Derived REVIEW_READONLY_FIELDS.
-- `pilot/helpers.py` -- extraction, shadow scorer, scalar computation, alignment, integrity validation, guarded Cohen's d, confusion matrix
-- `scripts/pilot_gate3.py` -- generation (40-sample TruthfulQA) + `--analyze` entry points. Incremental artifact persistence, invalid-sample flagging, deterministic CUDA controls.
+- `pilot/helpers.py` -- extraction, shadow scorer, scalar computation, alignment, integrity validation, confusion matrix. Cohen's d re-exported from stats/.
+- `stats/effect_size.py` -- shared Cohen's d + GuardedStat. Canonical location (extracted from pilot/helpers in PR #28). POOLED_VAR_EPS guard.
+- `analysis/types.py` -- frozen dataclasses: EligibilityCell/Table, PermutationNullConfig, RecurrenceStatistic, RecurrenceProfile, PermutationNullResult, RecurrenceNullReport, DLandscape, AsymmetryStatistic, SubsetSpec, MatchingDiagnostics, SelectionDiagnostics, AsymmetryNullResult, BaselineDeviation (PRs #28-#31).
+- `analysis/loader.py` -- boundary module: load + validate review/samples integrity + parse per-step to StepRecord + load_reviewer_votes from labeling batches. Rejects on integrity violations.
+- `analysis/prep.py` -- two-layer prep: prepare_series_data() (D-independent) + compute_pe_bundle() (D-dependent). prepare_series_data_from_subset() for in-memory subset prep with shared baseline. compute_baseline_deviation() for subset-vs-full diagnostic.
+- `analysis/eligibility.py` -- per-class x mode x segment accounting. No statistics.
+- `analysis/recurrence.py` -- compute_d_matrix() (full d values, never discarded), recurrence_from_d_matrix(), summarize_d_matrix() -> DLandscape, compute_head_asymmetry() -> AsymmetryStatistic. Numpy vectorized Cohen's d.
+- `analysis/permutation.py` -- stratified label permutation, Phipson-Smyth p-values. run_asymmetry_null() (stratified), run_paired_asymmetry_null() (pair-restricted). RNG confined here only.
+- `analysis/matching.py` -- greedy nearest-neighbor length matching. Deterministic, no RNG. Returns SubsetSpec + MatchingDiagnostics + pairs.
+- `analysis/selection.py` -- deterministic cohort selection (unanimous-only filter). Returns SubsetSpec + SelectionDiagnostics.
+- `analysis/report.py` -- provenance building, markdown rendering for recurrence null and confound controls reports.
+- `scripts/pilot_gate3.py` -- generation (40/400-sample TruthfulQA) + `--analyze` entry points. Incremental artifact persistence, deterministic CUDA controls.
+- `scripts/pe_recurrence_null.py` -- thin CLI for PE recurrence null test. Uses prep module, writes JSON + markdown with provenance.
+- `scripts/pe_confound_controls.py` -- thin CLI for confound controls: full-cohort asymmetry, length-matched, unanimous-only analyses. Writes JSON + markdown.
 - `io/writer.py`, `io/reader.py`, `io/derived.py` -- raw/derived gzipped JSONL split
 - `.github/workflows/ci.yml` -- lint-typecheck + test jobs, uv-first, SHA-pinned, `--locked`
 - `.pre-commit-config.yaml` -- local pre-commit hooks mirroring CI (ruff check, ruff format, mypy)
 - `AGENTS.md` -- Internal Affairs (Perplexity) auditor prompt
 - `CITATION.cff` -- project citation metadata
 
-### Pilot artifacts (gitignored, results/)
+### Artifacts (gitignored, results/)
 
+**40-sample pilot:**
 - `results/pilot_gate3/samples.json` -- 40 samples with per-step per-layer per-head SAD deltas
 - `results/pilot_gate3/review.json` -- 3-reviewer majority-vote labels (28 correct, 9 incorrect, 3 ambiguous)
-- `results/pilot_gate3/raw.jsonl.gz` -- raw JSONL archive
-- `results/pilot_gate3/cohens_d.json` -- per-(layer, head) Cohen's d matrices (exploratory, not evidential)
+- `results/pilot_gate3/pe_recurrence_null.json` -- null test output (342 observed, p=0.25)
+
+**400-sample run:**
+- `results/pilot_gate3_400/samples.json` -- 400 samples (2.36 GB)
+- `results/pilot_gate3_400/review.json` -- 3-Opus-reviewer majority-vote labels (282 correct, 68 incorrect, 50 ambiguous)
+- `results/pilot_gate3_400/labeling/` -- 24 per-reviewer batch files (88.5% unanimous)
+- `results/pilot_gate3_400/pe_recurrence_null.json` -- null test output (0 recurring heads, d_landscape included)
+- `results/pilot_gate3_400/REPORT.md` -- full analysis report
 
 ### What does NOT exist yet
 
-**Next immediate steps (in order):**
-1. D-sweep on pilot data (D=3..4 feasible under 2*D! policy; D=5+ requires longer sequences or relaxed eligibility)
-2. Layer-stratified PE profiles (per-layer correct/incorrect separation, L0-L31)
-3. Observable genericity argument (justify per-head SAD as generic observable of belief state)
-4. Polish pass (PerStepDict boundary type, fail-closed fixes, type annotations, CI coverage)
-5. Permutation null test (stratified null on recurrence statistic with eligibility accounting)
-6. Rényi fingerprint (port Rényi entropy parameter sweeps from production C++ kernel)
+**Next immediate:**
+1. Run confound controls on 400-sample data (`scripts/pe_confound_controls.py`). Code built in PR #31, not yet executed.
+2. Layer-stratified PE profiles (per-layer correct/incorrect separation, L0-L31) — only if signal survives confound controls
+3. D-sweep on 400-sample data (D=3..5 feasible with longer sequences)
+4. Observable genericity argument (justify per-head SAD as generic observable of belief state)
+5. Rényi fingerprint (port Rényi entropy parameter sweeps from production C++ kernel)
 
 **Milestone D (remaining):**
 - Gate 3: synthetic HMM benchmark — rank correlation of per-head PE with known fractal dimension across a family of generating processes with known unifilarity properties
-- Analysis module under `src/navi_sad/analysis/` (eligibility, recurrence, permutation)
-- TruthfulQA revisited post-validation as one regime partition among many
+- TruthfulQA revisited post-validation as one regime partition among many (currently: stress test, not calibration gate)
 - Gate 6: Overhead measurement (informational, not blocking)
+
+**Completed (moved from "not yet"):**
+- Analysis module (PRs #28, #29): eligibility, recurrence, permutation, loader, prep, report, types
+- D-matrix persistence + numpy vectorization (PR #29)
+- PerStepDict boundary type → StepRecord parsing (PR #29)
+- Permutation null test (PR #28): ran on 40-sample and 400-sample data
+- Stats module extraction (PR #28): Cohen's d moved to stats/effect_size.py
+- Confound controls machinery (PR #31): signed asymmetry null, length-matched analysis, unanimous-only analysis, matching.py, selection.py, pe_confound_controls.py CLI, baseline deviation diagnostic
 
 **Deferred (from IA audit, post-pilot):**
 - Adapter AST fingerprint check (IA F-04)
 - Linear attention denominator health diagnostics (IA F-11)
 - Full position-aware SAD normalization (IA F-09)
-- per_step typed record (Grumpy F-01 from PR #17)
 
 ## Plans (local only, gitignored)
 

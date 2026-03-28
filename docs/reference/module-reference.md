@@ -60,6 +60,42 @@
 
 - `extract_pe_features(records, D, tau)` --- SAD-specific PE wrapper. Per-(layer, head) extraction, first-differencing, detrending, segmentation, eligibility gating (minimum 2*D! points).
 
+## `navi_sad.analysis`
+
+| Module | Responsibility |
+|--------|---------------|
+| `types.py` | Frozen dataclasses: EligibilityCell/Table, PermutationNullConfig, RecurrenceStatistic/Profile, PermutationNullResult, RecurrenceNullReport, DLandscape, AsymmetryStatistic, SubsetSpec, MatchingDiagnostics, SelectionDiagnostics, AsymmetryNullResult, BaselineDeviation |
+| `loader.py` | Boundary: load + validate review/samples integrity + parse per-step to StepRecord + load per-reviewer votes |
+| `prep.py` | Two-layer prep: prepare_series_data() (D-independent) + compute_pe_bundle() (D-dependent). Subset prep + baseline deviation diagnostic. |
+| `eligibility.py` | Per-class x mode x segment accounting. No statistics. |
+| `recurrence.py` | compute_d_matrix(), recurrence_from_d_matrix(), summarize_d_matrix() -> DLandscape, compute_head_asymmetry() -> AsymmetryStatistic. Numpy vectorized Cohen's d. |
+| `permutation.py` | Stratified label permutation, Phipson-Smyth p-values, asymmetry null (stratified + pair-restricted). RNG confined here only. |
+| `matching.py` | Greedy nearest-neighbor length matching. Deterministic, no RNG. |
+| `selection.py` | Deterministic cohort selection (unanimous-only filter). |
+| `report.py` | Provenance building, markdown rendering for recurrence null and confound controls reports |
+
+### Key functions
+
+- `compute_d_matrix(lookup, labels, num_layers, num_heads)` --- full Cohen's d matrix, never discarded. Returns `DMatrix`.
+- `summarize_d_matrix(d_matrix, num_layers, num_heads)` --- distribution stats, directional counts, threshold sweep. Returns `DLandscape`.
+- `compute_head_asymmetry(d_matrix, num_layers, num_heads)` --- per-head mean-d, sign classification, min-combo gating. Returns `AsymmetryStatistic`.
+- `run_permutation_null(lookup, labels, token_counts, config, num_layers, num_heads)` --- stratified permutation null for recurrence count.
+- `run_asymmetry_null(lookup, labels, token_counts, ...)` --- stratified permutation null for signed asymmetry. Returns `AsymmetryNullResult`.
+- `run_paired_asymmetry_null(lookup, labels, pairs, ...)` --- pair-restricted null for matched designs.
+- `prepare_series_data(results_dir, num_layers, num_heads)` --- load, validate, extract series, compute baseline. D-independent.
+- `prepare_series_data_from_subset(data, indices, baseline, ...)` --- in-memory subset prep with provided baseline.
+- `compute_pe_bundle(series_data, pe_config)` --- compute PE features at a specific D.
+- `compute_baseline_deviation(subset_head_series, full_baseline)` --- subset-vs-full baseline diagnostic.
+- `match_by_token_count(labels, token_counts)` --- greedy nearest-neighbor matching with pairs.
+- `select_unanimous(reviewer_votes, majority_labels)` --- unanimous-only cohort filter.
+- `load_reviewer_votes(labeling_dir)` --- reads per-reviewer batch files.
+
+## `navi_sad.stats`
+
+| Module | Responsibility |
+|--------|---------------|
+| `effect_size.py` | Shared Cohen's d with validity guards (GuardedStat). POOLED_VAR_EPS numeric guard. |
+
 ## Not yet ported
 
 | Module | Language | Responsibility |
