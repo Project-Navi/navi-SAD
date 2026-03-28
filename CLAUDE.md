@@ -22,7 +22,7 @@ The 40-sample pilot falsified the naive hypothesis and produced one result worth
 - **Position confound confirmed.** Both groups climb from ~0.24 to ~0.40 over generation. First-differencing removes the trend but signal persists.
 - **Shadow scorer dead.** 10% agreement. Manual labels (3-reviewer majority vote, 92% unanimous) are canonical.
 
-**Hypothesis revised:** SAD is not a truth detector. It is a dynamical systems probe that reconstructs per-head attractor structure. The theoretical anchor is Shai et al. (NeurIPS 2024): transformers construct belief state geometry in their residual streams, and that geometry can be genuinely fractal for non-unifilar inference processes. Gate 3 tests whether per-head PE tracks the computational-mechanical complexity of the inference problem, using synthetic HMM benchmarks with known fractal dimensions.
+**Hypothesis revised:** SAD is not a truth detector. It is a dynamical systems probe that reconstructs per-head attractor structure. The theoretical anchor is Shai et al. (NeurIPS 2024, arXiv:2405.15943): transformers construct belief state geometry in their residual streams, and that geometry can be genuinely fractal for non-unifilar inference processes. Gate 3 tests whether per-head PE tracks the computational-mechanical complexity of the inference problem, using synthetic HMM benchmarks with known fractal dimensions.
 
 ### What exists and works
 
