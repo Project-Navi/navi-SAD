@@ -24,6 +24,7 @@ from navi_sad.analysis.loader import load_reviewer_votes
 from navi_sad.analysis.matching import match_by_token_count
 from navi_sad.analysis.permutation import run_asymmetry_null, run_paired_asymmetry_null
 from navi_sad.analysis.prep import (
+    compute_baseline_deviation,
     compute_pe_bundle,
     prepare_series_data,
     prepare_series_data_from_subset,
@@ -33,7 +34,7 @@ from navi_sad.analysis.recurrence import (
 )
 from navi_sad.analysis.report import build_provenance, format_confound_controls_markdown
 from navi_sad.analysis.selection import select_unanimous
-from navi_sad.analysis.types import AsymmetryNullResult, SelectionDiagnostics
+from navi_sad.analysis.types import AsymmetryNullResult, BaselineDeviation, SelectionDiagnostics
 from navi_sad.signal.pe_features import PEConfig
 
 logger = logging.getLogger(__name__)
@@ -113,6 +114,7 @@ def main() -> None:
 
     matched_result: AsymmetryNullResult | None = None
     matched_sensitivity: AsymmetryNullResult | None = None
+    matched_baseline_dev: BaselineDeviation | None = None
 
     if match_spec.n_correct > 0 and match_spec.n_incorrect > 0:
         # Prepare subset with full-cohort baseline
@@ -123,6 +125,15 @@ def main() -> None:
             num_layers=NUM_LAYERS,
             num_heads=NUM_HEADS,
         )
+        matched_baseline_dev = compute_baseline_deviation(
+            matched_series.head_series, series_data.baseline
+        )
+        logger.info(
+            "  Baseline deviation: max=%.6f, mean=%.6f",
+            matched_baseline_dev.max_abs_deviation,
+            matched_baseline_dev.mean_abs_deviation,
+        )
+
         matched_bundle = compute_pe_bundle(matched_series, pe_config=pe_config)
 
         # Matched labels (only paired samples)
@@ -170,6 +181,7 @@ def main() -> None:
     labeling_dir = results_dir / "labeling"
     unanimous_result: AsymmetryNullResult | None = None
     unanimous_diag: SelectionDiagnostics | None = None
+    unanimous_baseline_dev: BaselineDeviation | None = None
 
     if labeling_dir.exists():
         votes = load_reviewer_votes(labeling_dir)
@@ -190,6 +202,15 @@ def main() -> None:
                 num_layers=NUM_LAYERS,
                 num_heads=NUM_HEADS,
             )
+            unanimous_baseline_dev = compute_baseline_deviation(
+                unan_series.head_series, series_data.baseline
+            )
+            logger.info(
+                "  Baseline deviation: max=%.6f, mean=%.6f",
+                unanimous_baseline_dev.max_abs_deviation,
+                unanimous_baseline_dev.mean_abs_deviation,
+            )
+
             unan_bundle = compute_pe_bundle(unan_series, pe_config=pe_config)
 
             logger.info("  Asymmetry null (%d permutations)", args.n_permutations)
@@ -222,6 +243,7 @@ def main() -> None:
     if matched_result is not None:
         json_data["length_matched"] = {
             "diagnostics": match_diag.to_dict(),
+            "baseline_deviation": matched_baseline_dev.to_dict() if matched_baseline_dev else None,
             "paired_null": matched_result.to_dict(),
         }
         if matched_sensitivity is not None:
@@ -231,6 +253,9 @@ def main() -> None:
     if unanimous_result is not None and unanimous_diag is not None:
         json_data["unanimous_only"] = {
             "diagnostics": unanimous_diag.to_dict(),
+            "baseline_deviation": (
+                unanimous_baseline_dev.to_dict() if unanimous_baseline_dev else None
+            ),
             "null": unanimous_result.to_dict(),
         }
 
@@ -248,6 +273,8 @@ def main() -> None:
         unanimous_result=unanimous_result,
         unanimous_diag=unanimous_diag,
         provenance=provenance,
+        matched_baseline_dev=matched_baseline_dev,
+        unanimous_baseline_dev=unanimous_baseline_dev,
     )
     md_path = results_dir / "pe_confound_controls.md"
     with open(md_path, "w", encoding="utf-8") as f:

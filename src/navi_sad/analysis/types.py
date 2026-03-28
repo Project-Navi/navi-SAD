@@ -330,6 +330,22 @@ class AsymmetryNullResult:
 
 
 @dataclass(frozen=True)
+class BaselineDeviation:
+    """Diagnostic: how much a subset's positional baseline differs from full cohort."""
+
+    max_abs_deviation: float
+    mean_abs_deviation: float
+    n_positions_compared: int
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "max_abs_deviation": self.max_abs_deviation,
+            "mean_abs_deviation": self.mean_abs_deviation,
+            "n_positions_compared": self.n_positions_compared,
+        }
+
+
+@dataclass(frozen=True)
 class RecurrenceNullReport:
     """Top-level report combining all analysis outputs.
 

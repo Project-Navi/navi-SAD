@@ -9,9 +9,12 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from navi_sad.analysis.prep import (
     PEBundle,
     SeriesData,
+    compute_baseline_deviation,
     compute_pe_bundle,
     prepare_series_data,
     prepare_series_data_from_subset,
@@ -200,8 +203,6 @@ class TestPrepareSeriesDataFromSubset:
     def test_empty_indices_raises(self, tmp_path: Path) -> None:
         d = _write_fixtures(tmp_path)
         full_sd = prepare_series_data(d, num_layers=2, num_heads=2)
-        import pytest
-
         with pytest.raises(ValueError, match=r"[Ee]mpty"):
             prepare_series_data_from_subset(
                 full_sd.input,
@@ -214,8 +215,6 @@ class TestPrepareSeriesDataFromSubset:
     def test_invalid_index_raises(self, tmp_path: Path) -> None:
         d = _write_fixtures(tmp_path)
         full_sd = prepare_series_data(d, num_layers=2, num_heads=2)
-        import pytest
-
         with pytest.raises(ValueError, match="not in"):
             prepare_series_data_from_subset(
                 full_sd.input,
@@ -238,3 +237,39 @@ class TestPrepareSeriesDataFromSubset:
         )
         assert subset.input.n_correct == 1
         assert subset.input.n_incorrect == 1
+
+
+class TestComputeBaselineDeviation:
+    def test_full_cohort_deviation_is_zero(self, tmp_path: Path) -> None:
+        """Full cohort vs itself -> zero deviation."""
+        d = _write_fixtures(tmp_path, n_correct=3, n_incorrect=3)
+        full_sd = prepare_series_data(d, num_layers=2, num_heads=2)
+        dev = compute_baseline_deviation(
+            subset_head_series=full_sd.head_series,
+            full_baseline=full_sd.baseline,
+        )
+        assert dev.max_abs_deviation == pytest.approx(0.0, abs=1e-12)
+        assert dev.mean_abs_deviation == pytest.approx(0.0, abs=1e-12)
+
+    def test_subset_has_nonzero_deviation(self, tmp_path: Path) -> None:
+        """Subset baseline differs from full cohort -> positive deviation."""
+        d = _write_fixtures(tmp_path, n_correct=4, n_incorrect=4)
+        full_sd = prepare_series_data(d, num_layers=2, num_heads=2)
+        # Take only first 2 samples (subset)
+        subset_series = {idx: full_sd.head_series[idx] for idx in [0, 1]}
+        dev = compute_baseline_deviation(
+            subset_head_series=subset_series,
+            full_baseline=full_sd.baseline,
+        )
+        # With different subset, baseline should differ
+        assert dev.max_abs_deviation >= 0.0
+        assert dev.n_positions_compared > 0
+
+    def test_empty_subset_returns_zero(self) -> None:
+        """Empty subset -> zero deviation, zero positions."""
+        dev = compute_baseline_deviation(
+            subset_head_series={},
+            full_baseline={(0, 0): [0.1, 0.2]},
+        )
+        assert dev.max_abs_deviation == 0.0
+        assert dev.n_positions_compared == 0

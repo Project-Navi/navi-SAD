@@ -13,7 +13,7 @@ from typing import Any
 from navi_sad.analysis.eligibility import build_eligibility_table
 from navi_sad.analysis.loader import AnalysisInput, load_and_validate, step_records_to_dicts
 from navi_sad.analysis.recurrence import PELookup, build_pe_lookup
-from navi_sad.analysis.types import EligibilityTable
+from navi_sad.analysis.types import BaselineDeviation, EligibilityTable
 from navi_sad.signal.pe_features import (
     PEConfig,
     SamplePEFeatures,
@@ -156,6 +156,53 @@ def prepare_series_data_from_subset(
         per_step_dicts=per_step_dicts,
         num_layers=num_layers,
         num_heads=num_heads,
+    )
+
+
+def compute_baseline_deviation(
+    subset_head_series: dict[int, dict[tuple[int, int], list[float]]],
+    full_baseline: dict[tuple[int, int], list[float]],
+) -> BaselineDeviation:
+    """Compute how much a subset's positional baseline deviates from full cohort.
+
+    Recomputes what the baseline would be for the subset alone, then
+    measures the max and mean absolute deviation from the full-cohort
+    baseline across all (layer, head, position) combinations.
+
+    This is the diagnostic promised by the spec: if baselines differ
+    substantially, the shared-baseline assumption may not be benign.
+    """
+    if not subset_head_series:
+        return BaselineDeviation(
+            max_abs_deviation=0.0,
+            mean_abs_deviation=0.0,
+            n_positions_compared=0,
+        )
+
+    # Recompute subset baseline
+    subset_baseline = compute_positional_baseline(list(subset_head_series.values()))
+
+    # Compare against full baseline
+    all_deviations: list[float] = []
+    for head_key, full_series in full_baseline.items():
+        subset_series = subset_baseline.get(head_key)
+        if subset_series is None:
+            continue
+        min_len = min(len(full_series), len(subset_series))
+        for pos in range(min_len):
+            all_deviations.append(abs(full_series[pos] - subset_series[pos]))
+
+    if not all_deviations:
+        return BaselineDeviation(
+            max_abs_deviation=0.0,
+            mean_abs_deviation=0.0,
+            n_positions_compared=0,
+        )
+
+    return BaselineDeviation(
+        max_abs_deviation=max(all_deviations),
+        mean_abs_deviation=sum(all_deviations) / len(all_deviations),
+        n_positions_compared=len(all_deviations),
     )
 
 

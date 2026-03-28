@@ -11,6 +11,7 @@ from typing import Any
 from navi_sad.analysis.loader import AnalysisInput
 from navi_sad.analysis.types import (
     AsymmetryNullResult,
+    BaselineDeviation,
     MatchingDiagnostics,
     RecurrenceNullReport,
     SelectionDiagnostics,
@@ -233,6 +234,15 @@ def _format_asymmetry_section(
     return lines
 
 
+def _format_baseline_deviation(dev: BaselineDeviation) -> list[str]:
+    """Format baseline deviation diagnostic."""
+    return [
+        f"- **Baseline deviation from full cohort:** "
+        f"max={dev.max_abs_deviation:.6f}, mean={dev.mean_abs_deviation:.6f} "
+        f"({dev.n_positions_compared} positions compared)",
+    ]
+
+
 def format_confound_controls_markdown(
     full_cohort: AsymmetryNullResult,
     matched_result: AsymmetryNullResult | None,
@@ -241,6 +251,8 @@ def format_confound_controls_markdown(
     unanimous_result: AsymmetryNullResult | None,
     unanimous_diag: SelectionDiagnostics | None,
     provenance: dict[str, Any],
+    matched_baseline_dev: BaselineDeviation | None = None,
+    unanimous_baseline_dev: BaselineDeviation | None = None,
 ) -> str:
     """Render confound controls report as markdown.
 
@@ -280,6 +292,8 @@ def format_confound_controls_markdown(
             f"- **Pair gaps:** max={matched_diag.max_pair_token_gap}, mean={matched_diag.mean_pair_token_gap:.1f}"
         )
         lines.append(f"- **Dropped correct tokens:** {matched_diag.dropped_correct_token_summary}")
+        if matched_baseline_dev is not None:
+            lines.extend(_format_baseline_deviation(matched_baseline_dev))
         lines.append("")
     if matched_result is not None:
         lines.extend(
@@ -306,6 +320,8 @@ def format_confound_controls_markdown(
         )
         lines.append(f"- **Excluded ambiguous:** {unanimous_diag.n_excluded_ambiguous}")
         lines.append(f"- **Excluded non-unanimous:** {unanimous_diag.n_excluded_non_unanimous}")
+        if unanimous_baseline_dev is not None:
+            lines.extend(_format_baseline_deviation(unanimous_baseline_dev))
         lines.append("")
     if unanimous_result is not None:
         lines.extend(_format_asymmetry_section("Unanimous Only", unanimous_result))
