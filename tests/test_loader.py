@@ -10,7 +10,7 @@ import json
 
 import pytest
 
-from navi_sad.analysis.loader import AnalysisInput, load_and_validate
+from navi_sad.analysis.loader import AnalysisInput, load_and_validate, load_reviewer_votes
 from navi_sad.core.types import StepRecord
 
 
@@ -251,3 +251,107 @@ class TestLoadAndValidate:
         rec = result.per_step_data[1][0]
         assert isinstance(rec, StepRecord)
         assert not hasattr(rec, "extra")
+
+
+def _write_labeling_files(
+    labeling_dir: object,
+    votes: dict[int, list[str]],
+    n_reviewers: int = 3,
+) -> None:
+    """Write labeling batch files for testing.
+
+    votes: {dataset_index: [reviewer_0_label, reviewer_1_label, ...]}.
+    Splits into batches of 50 (matching real file format).
+    """
+    from pathlib import Path
+
+    d = Path(str(labeling_dir))
+    d.mkdir(parents=True, exist_ok=True)
+
+    # Group by batch of 50
+    sorted_indices = sorted(votes.keys())
+    batch_size = 50
+    batches: list[list[int]] = []
+    for i in range(0, len(sorted_indices), batch_size):
+        batches.append(sorted_indices[i : i + batch_size])
+
+    for batch_idx, indices in enumerate(batches):
+        for reviewer in range(n_reviewers):
+            records = []
+            for idx in indices:
+                records.append(
+                    {
+                        "dataset_index": idx,
+                        "human_label": votes[idx][reviewer],
+                        "question": "test",
+                        "best_answer": "test",
+                    }
+                )
+            batch_name = f"batch_{batch_idx:02d}_reviewer_{reviewer}.json"
+            with open(d / batch_name, "w") as f:
+                json.dump(records, f)
+
+
+class TestLoadReviewerVotes:
+    def test_basic_load(self, tmp_path: object) -> None:
+        from pathlib import Path
+
+        labeling_dir = Path(str(tmp_path)) / "labeling"
+        votes = {
+            0: ["correct", "correct", "correct"],
+            1: ["incorrect", "incorrect", "correct"],
+        }
+        _write_labeling_files(labeling_dir, votes)
+        result = load_reviewer_votes(labeling_dir)
+        assert result == votes
+
+    def test_multiple_batches(self, tmp_path: object) -> None:
+        from pathlib import Path
+
+        labeling_dir = Path(str(tmp_path)) / "labeling"
+        # 60 samples -> 2 batches (50 + 10)
+        votes = {i: ["correct", "correct", "incorrect"] for i in range(60)}
+        _write_labeling_files(labeling_dir, votes)
+        result = load_reviewer_votes(labeling_dir)
+        assert len(result) == 60
+
+    def test_missing_dir_raises(self) -> None:
+        from pathlib import Path
+
+        with pytest.raises(FileNotFoundError):
+            load_reviewer_votes(Path("/nonexistent/labeling"))
+
+    def test_inconsistent_reviewer_count_raises(self, tmp_path: object) -> None:
+        """Different batches with different reviewer counts -> raise."""
+        from pathlib import Path
+
+        labeling_dir = Path(str(tmp_path)) / "labeling"
+        labeling_dir.mkdir(parents=True)
+        # Batch 0 has 3 reviewers
+        for r in range(3):
+            with open(labeling_dir / f"batch_00_reviewer_{r}.json", "w") as f:
+                json.dump([{"dataset_index": 0, "human_label": "correct"}], f)
+        # Batch 1 has 2 reviewers (inconsistent)
+        for r in range(2):
+            with open(labeling_dir / f"batch_01_reviewer_{r}.json", "w") as f:
+                json.dump([{"dataset_index": 50, "human_label": "correct"}], f)
+
+        with pytest.raises(ValueError, match=r"[Rr]eviewer"):
+            load_reviewer_votes(labeling_dir)
+
+    def test_invalid_label_raises(self, tmp_path: object) -> None:
+        from pathlib import Path
+
+        labeling_dir = Path(str(tmp_path)) / "labeling"
+        votes = {0: ["correct", "correct", "maybe"]}
+        _write_labeling_files(labeling_dir, votes)
+        with pytest.raises(ValueError, match=r"[Ll]abel"):
+            load_reviewer_votes(labeling_dir)
+
+    def test_no_batch_files_raises(self, tmp_path: object) -> None:
+        from pathlib import Path
+
+        labeling_dir = Path(str(tmp_path)) / "labeling"
+        labeling_dir.mkdir(parents=True)
+        with pytest.raises(ValueError, match=r"[Nn]o.*batch"):
+            load_reviewer_votes(labeling_dir)

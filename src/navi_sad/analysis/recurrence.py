@@ -13,7 +13,12 @@ from __future__ import annotations
 
 import numpy as np
 
-from navi_sad.analysis.types import DLandscape, RecurrenceProfile, RecurrenceStatistic
+from navi_sad.analysis.types import (
+    AsymmetryStatistic,
+    DLandscape,
+    RecurrenceProfile,
+    RecurrenceStatistic,
+)
 from navi_sad.signal.pe_features import SamplePEFeatures
 from navi_sad.stats.effect_size import POOLED_VAR_EPS
 
@@ -320,4 +325,88 @@ def summarize_d_matrix(
         p95_abs_d=float(np.percentile(abs_d, 95)),
         p99_abs_d=float(np.percentile(abs_d, 99)),
         threshold_sweep={str(t): int(np.sum(abs_d > t)) for t in thresholds},
+    )
+
+
+# -- Head-level asymmetry (PR #30) --
+
+DEFAULT_MIN_PRESENT_COMBOS = 6
+DEFAULT_SIGN_EPS = 1e-10
+
+
+def compute_head_asymmetry(
+    d_matrix: DMatrix,
+    *,
+    num_layers: int,
+    num_heads: int,
+    min_present_combos: int = DEFAULT_MIN_PRESENT_COMBOS,
+    sign_eps: float = DEFAULT_SIGN_EPS,
+) -> AsymmetryStatistic:
+    """Compute head-level directional asymmetry from a d matrix.
+
+    For each head in the (num_layers x num_heads) grid:
+    1. Collect all non-None d values across combos.
+    2. If zero present -> absent.
+    3. If present < min_present_combos -> sparse (excluded from vote).
+    4. Otherwise compute mean d, classify via sign_eps deadzone.
+
+    Returns AsymmetryStatistic with signed_excess = n_negative - n_positive.
+    """
+    # Collect per-head d values across all combos
+    head_d_vals: dict[tuple[int, int], list[float]] = {
+        (layer, head): [] for layer in range(num_layers) for head in range(num_heads)
+    }
+
+    for _combo, head_d in d_matrix.items():
+        for head_key, d_val in head_d.items():
+            if d_val is not None and head_key in head_d_vals:
+                head_d_vals[head_key].append(d_val)
+
+    n_absent = 0
+    n_sparse = 0
+    n_negative = 0
+    n_positive = 0
+    n_zero = 0
+    voting_mean_ds: list[float] = []
+
+    for head_key in sorted(head_d_vals):
+        vals = head_d_vals[head_key]
+        n_present = len(vals)
+
+        if n_present == 0:
+            n_absent += 1
+            continue
+        if n_present < min_present_combos:
+            n_sparse += 1
+            continue
+
+        mean_d = sum(vals) / n_present
+        voting_mean_ds.append(mean_d)
+
+        if mean_d < -sign_eps:
+            n_negative += 1
+        elif mean_d > sign_eps:
+            n_positive += 1
+        else:
+            n_zero += 1
+
+    n_signed = n_negative + n_positive
+    negative_fraction = n_negative / n_signed if n_signed > 0 else None
+    mean_head_mean_d = sum(voting_mean_ds) / len(voting_mean_ds) if voting_mean_ds else None
+    mean_head_abs_mean_d = (
+        sum(abs(d) for d in voting_mean_ds) / len(voting_mean_ds) if voting_mean_ds else None
+    )
+
+    return AsymmetryStatistic(
+        n_negative_heads=n_negative,
+        n_positive_heads=n_positive,
+        n_zero_heads=n_zero,
+        n_absent_heads=n_absent,
+        n_sparse_heads=n_sparse,
+        signed_excess=n_negative - n_positive,
+        negative_fraction=negative_fraction,
+        mean_head_mean_d=mean_head_mean_d,
+        mean_head_abs_mean_d=mean_head_abs_mean_d,
+        min_present_combos=min_present_combos,
+        sign_eps=sign_eps,
     )

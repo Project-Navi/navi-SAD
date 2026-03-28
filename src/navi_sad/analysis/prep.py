@@ -87,6 +87,78 @@ def prepare_series_data(
     )
 
 
+def prepare_series_data_from_subset(
+    data: AnalysisInput,
+    indices: set[int],
+    baseline: dict[tuple[int, int], list[float]],
+    num_layers: int,
+    num_heads: int,
+) -> SeriesData:
+    """Build SeriesData from an already-loaded subset, using a provided baseline.
+
+    Filters the AnalysisInput to the given indices. Does NOT recompute
+    the positional baseline — uses the full-cohort baseline passed in.
+    Skips disk I/O entirely.
+
+    Args:
+        data: Already-loaded and validated AnalysisInput.
+        indices: Which dataset indices to include.
+        baseline: Pre-computed positional baseline (full-cohort).
+        num_layers: Number of model layers.
+        num_heads: Number of attention heads per layer.
+
+    Raises:
+        ValueError: If indices is empty or contains indices not in data.
+    """
+    if not indices:
+        raise ValueError("Empty indices set — no samples to prepare")
+
+    available = set(data.per_step_data.keys())
+    missing = indices - available
+    if missing:
+        raise ValueError(
+            f"Indices {sorted(missing)} not in loaded data. Available: {sorted(available)}"
+        )
+
+    # Filter labels, token_counts, per_step_data
+    filtered_labels = {idx: data.labels[idx] for idx in indices}
+    filtered_token_counts = {idx: data.token_counts[idx] for idx in indices}
+    filtered_per_step = {idx: data.per_step_data[idx] for idx in indices}
+
+    n_correct = sum(1 for v in filtered_labels.values() if v == "correct")
+    n_incorrect = sum(1 for v in filtered_labels.values() if v == "incorrect")
+
+    subset_input = AnalysisInput(
+        labels=filtered_labels,
+        token_counts=filtered_token_counts,
+        per_step_data=filtered_per_step,
+        n_correct=n_correct,
+        n_incorrect=n_incorrect,
+        samples_path=data.samples_path,
+        review_path=data.review_path,
+    )
+
+    # Convert StepRecords to dicts for the PE API
+    per_step_dicts = {
+        idx: step_records_to_dicts(records) for idx, records in filtered_per_step.items()
+    }
+
+    # Extract head series (for the subset, but baseline is NOT recomputed)
+    head_series: dict[int, dict[tuple[int, int], list[float]]] = {}
+    for idx in sorted(per_step_dicts):
+        hs = extract_head_sad_series(per_step_dicts[idx], num_layers, num_heads)
+        head_series[idx] = hs
+
+    return SeriesData(
+        input=subset_input,
+        head_series=head_series,
+        baseline=baseline,
+        per_step_dicts=per_step_dicts,
+        num_layers=num_layers,
+        num_heads=num_heads,
+    )
+
+
 def compute_pe_bundle(
     series_data: SeriesData,
     pe_config: PEConfig | None = None,

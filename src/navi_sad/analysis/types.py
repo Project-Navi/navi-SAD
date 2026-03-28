@@ -195,6 +195,141 @@ class DLandscape:
 
 
 @dataclass(frozen=True)
+class AsymmetryStatistic:
+    """Head-level directional asymmetry. NOT cell-level.
+
+    For each head, compute mean d across all present combos. Classify
+    as negative/positive/zero using sign_eps deadzone. Heads with
+    fewer than min_present_combos are excluded from sign counts.
+    """
+
+    n_negative_heads: int
+    n_positive_heads: int
+    n_zero_heads: int
+    n_absent_heads: int  # zero present combos
+    n_sparse_heads: int  # 1 to min_combos-1 present combos (excluded from vote)
+    signed_excess: int  # n_negative_heads - n_positive_heads
+    negative_fraction: float | None  # n_neg / (n_neg + n_pos), None if both zero
+    mean_head_mean_d: float | None  # mean of per-head mean-d values (voting heads only)
+    mean_head_abs_mean_d: float | None
+    min_present_combos: int  # frozen threshold (default 6)
+    sign_eps: float  # frozen deadzone (default 1e-10)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "n_negative_heads": self.n_negative_heads,
+            "n_positive_heads": self.n_positive_heads,
+            "n_zero_heads": self.n_zero_heads,
+            "n_absent_heads": self.n_absent_heads,
+            "n_sparse_heads": self.n_sparse_heads,
+            "signed_excess": self.signed_excess,
+            "negative_fraction": self.negative_fraction,
+            "mean_head_mean_d": self.mean_head_mean_d,
+            "mean_head_abs_mean_d": self.mean_head_abs_mean_d,
+            "min_present_combos": self.min_present_combos,
+            "sign_eps": self.sign_eps,
+        }
+
+
+@dataclass(frozen=True)
+class SubsetSpec:
+    """Common output from matching and selection modules."""
+
+    included_indices: frozenset[int]
+    provenance_name: str  # "length_matched", "unanimous_only"
+    n_correct: int
+    n_incorrect: int
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "included_indices": sorted(self.included_indices),
+            "provenance_name": self.provenance_name,
+            "n_correct": self.n_correct,
+            "n_incorrect": self.n_incorrect,
+        }
+
+
+@dataclass(frozen=True)
+class MatchingDiagnostics:
+    """Diagnostics from greedy nearest-neighbor length matching."""
+
+    n_correct_before: int
+    n_incorrect_before: int
+    n_correct_after: int
+    n_incorrect_after: int
+    n_correct_dropped: int
+    n_incorrect_dropped: int
+    mean_tokens_correct_before: float
+    mean_tokens_incorrect_before: float
+    mean_tokens_correct_after: float
+    mean_tokens_incorrect_after: float
+    max_pair_token_gap: int
+    mean_pair_token_gap: float
+    dropped_correct_token_summary: str  # "min-max, mean" of dropped correct tokens
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "n_correct_before": self.n_correct_before,
+            "n_incorrect_before": self.n_incorrect_before,
+            "n_correct_after": self.n_correct_after,
+            "n_incorrect_after": self.n_incorrect_after,
+            "n_correct_dropped": self.n_correct_dropped,
+            "n_incorrect_dropped": self.n_incorrect_dropped,
+            "mean_tokens_correct_before": self.mean_tokens_correct_before,
+            "mean_tokens_incorrect_before": self.mean_tokens_incorrect_before,
+            "mean_tokens_correct_after": self.mean_tokens_correct_after,
+            "mean_tokens_incorrect_after": self.mean_tokens_incorrect_after,
+            "max_pair_token_gap": self.max_pair_token_gap,
+            "mean_pair_token_gap": self.mean_pair_token_gap,
+            "dropped_correct_token_summary": self.dropped_correct_token_summary,
+        }
+
+
+@dataclass(frozen=True)
+class SelectionDiagnostics:
+    """Diagnostics from cohort selection (e.g. unanimous-only)."""
+
+    selection_name: str
+    n_correct_before: int
+    n_incorrect_before: int
+    n_correct_after: int
+    n_incorrect_after: int
+    n_excluded_ambiguous: int
+    n_excluded_non_unanimous: int
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "selection_name": self.selection_name,
+            "n_correct_before": self.n_correct_before,
+            "n_incorrect_before": self.n_incorrect_before,
+            "n_correct_after": self.n_correct_after,
+            "n_incorrect_after": self.n_incorrect_after,
+            "n_excluded_ambiguous": self.n_excluded_ambiguous,
+            "n_excluded_non_unanimous": self.n_excluded_non_unanimous,
+        }
+
+
+@dataclass(frozen=True)
+class AsymmetryNullResult:
+    """Result of a permutation null test on the asymmetry statistic."""
+
+    observed: AsymmetryStatistic
+    p_value_two_sided: float  # PRIMARY
+    p_value_one_sided_negative: float  # secondary/descriptive
+    null_signed_excess_summary: dict[str, float]  # mean, std, min, max, percentiles
+    n_permutations: int
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "observed": self.observed.to_dict(),
+            "p_value_two_sided": self.p_value_two_sided,
+            "p_value_one_sided_negative": self.p_value_one_sided_negative,
+            "null_signed_excess_summary": dict(self.null_signed_excess_summary),
+            "n_permutations": self.n_permutations,
+        }
+
+
+@dataclass(frozen=True)
 class RecurrenceNullReport:
     """Top-level report combining all analysis outputs.
 
