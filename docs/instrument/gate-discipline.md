@@ -11,7 +11,7 @@ This prevents the most common form of measurement self-deception: adjusting the 
 | [0](gate-0.md) | Observer does not perturb the system | Bit-identical tokens and logits | Greedy decode, 32 layers | **Pass** |
 | [1](gate-1.md) | Recomputed attention matches native output | Cosine >= 0.999996, rel L2 <= 0.002759 | 2240 records, frozen thresholds | **Pass** |
 | [2](gate-2.md) | No memory leaks under sustained use | 50 generations | 0.0 MiB VRAM spread, 0.7 MiB CPU RSS growth | **Pass** |
-| 3 | [Permutation entropy (PE)](../theory/takens-embedding.md) tracks belief state complexity | Rank correlation with known fractal dimension | Planned | **In progress** |
+| 3 | [Permutation entropy (PE)](../theory/takens-embedding.md) tracks belief state complexity | Spearman rank correlation between per-head PE and known fractal dimension, targeting L15--21 heads, surviving permutation null | Planned | **In progress** |
 
 ---
 
@@ -21,7 +21,7 @@ Gate tolerances follow a three-step protocol:
 
 1. **Define pass/fail criteria before implementation.** Every gate has a documented criterion in the design spec before any code is written. The criterion is the hypothesis; the test either confirms or falsifies it.
 
-2. **Calibrate once, then freeze.** For Gate 1, a single calibration pass runs the adapter across all layers and sequence positions on Mistral-7B-Instruct-v0.2. The worst-case metrics from that pass set the thresholds. Calibration produced 2240 parity records. The observed worst-case cosine delta from 1.0 was 1.31e-6; the frozen threshold applies 3x headroom (cosine >= 0.999996). The observed worst-case relative L2 was 0.00184; the frozen threshold is 0.002759 (1.5x headroom). These numbers live in `tests/gates/test_gate1_parity.py` as module-level constants.
+2. **Calibrate once, then freeze.** For Gate 1, a single calibration pass runs the adapter across all layers and sequence positions on Mistral-7B-Instruct-v0.2. The worst-case metrics from that pass set the thresholds. Calibration produced 2240 parity records (32 layers x 70 per-layer records across 3 prompt shapes and multiple sequence lengths). The observed worst-case cosine delta from 1.0 was 1.31e-6; the frozen threshold applies 3x headroom (cosine >= 0.999996). The observed worst-case relative L2 was 0.00184; the frozen threshold is 0.002759 (approximately 1.5x headroom). These numbers live in `tests/gates/test_gate1_parity.py` as module-level constants.
 
 3. **Never relax after seeing task results.** If a gate fails against frozen tolerances, the adapter is broken. Fix the adapter or downgrade the capture tier. Adjusting the threshold to make results pass is the single most dangerous thing an instrument builder can do.
 

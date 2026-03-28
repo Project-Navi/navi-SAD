@@ -24,7 +24,7 @@ Terms used across the navi-SAD documentation. Definitions are project-specific w
 :   An attention variant where multiple query heads share key-value heads (Ainslie et al., EMNLP 2023, [arXiv:2305.13245](https://arxiv.org/abs/2305.13245)). Mistral-7B uses GQA (32 query heads, 8 KV heads). The [adapter](../instrument/adapter-discipline.md) expands KV heads to match query heads before computing divergence.
 
 **Non-unifilar**
-:   A hidden Markov model where the current observation does not uniquely determine the hidden state transition. Non-unifilar processes have fractal belief state geometry.
+:   A hidden Markov model where the current observation, given the current hidden state, does not uniquely determine the next hidden state. Non-unifilar processes have fractal belief state geometry.
 
 **Permutation entropy (PE)**
 :   The Shannon entropy of the ordinal pattern distribution in a delay-coordinate embedding. Measures the complexity of the trajectory's temporal structure.

@@ -2,7 +2,7 @@
 
 *Status: Theoretically motivated. Empirical validation planned (Gate 3).*
 
-Each per-head [SAD trajectory](sad-instrument.md) is treated as a delay-coordinate embedding of the model's internal dynamical state. We are not measuring a signal --- we are reconstructing an attractor. [Permutation entropy](../reference/glossary.md#permutation-entropy-pe) is load-bearing: Bandt-Pompe ordinal patterns are designed for delay-coordinate reconstructions.
+Each per-head [SAD trajectory](sad-instrument.md) is treated as a delay-coordinate embedding of the model's internal dynamical state. We are not measuring a signal --- we are reconstructing an attractor (a compact invariant set in the sense of Sauer, Yorke & Casdagli, 1991). [Permutation entropy](../reference/glossary.md#permutation-entropy-pe) is load-bearing: Bandt-Pompe ordinal patterns are designed for delay-coordinate reconstructions.
 
 ---
 
@@ -104,7 +104,7 @@ Shai, Marzen, Teixeira, Gietelink Oldenziel, and Riechers (2024) show that trans
 **Unifilar vs. non-unifilar.** A hidden Markov model is *unifilar* if, given the current hidden state and the observed symbol, the next hidden state is uniquely determined. Non-unifilar processes lack this property: the same (state, observation) pair can lead to multiple possible next states. This distinction determines the geometry:
 
 - **Unifilar processes** produce point-like belief states. Each observation history maps to a single hidden state, so the belief state is always a delta distribution. The MSP geometry is discrete --- a finite set of points.
-- **Non-unifilar processes** produce fractal belief states. Because observations do not uniquely determine the hidden state, Bayesian updating repeatedly splits and folds the probability distribution. Each new observation applies a contraction mapping to the belief simplex, and iterated application of these contractions produces self-similar structure --- a fractal. The more ambiguous the state transitions, the richer the fractal.
+- **Non-unifilar processes** produce fractal belief states. Because observations do not uniquely determine the hidden state, Bayesian updating repeatedly splits and folds the probability distribution. Each new observation applies a contraction mapping to the belief simplex, and iterated application of these contractions produces self-similar structure --- a fractal. The more ambiguous the state transitions, the richer the fractal. For specific HMM families, Shai et al. demonstrate Sierpinski-triangle-like belief state attractors.
 
 **Why this matters for SAD.** If transformers linearly encode belief state geometry, and that geometry can be fractal, then a smooth generic observable of the residual stream should carry information about the fractal structure. Per-head cosine divergence between softmax and linear attention is such an observable --- it is a smooth function of the Q/K/V tensors, which are linear projections of the residual stream. Under the Takens framing, PE on the resulting trajectory measures the complexity of the reconstructed attractor, which should correlate with the fractal dimension of the underlying belief state geometry.
 
@@ -122,4 +122,4 @@ This gives Gate 3 its design logic. Synthetic HMMs with known unifilarity proper
 - Sauer, T., Yorke, J. A., & Casdagli, M. (1991). Embedology. *Journal of Statistical Physics*, 65(3--4), 579--616. (Generalizes Takens and Mane to attractors with box-counting dimension \( d_A \), requiring \( D > 2d_A \).)
 - Bandt, C. & Pompe, B. (2002). Permutation Entropy: A Natural Complexity Measure for Time Series. *Physical Review Letters*, 88(17), 174102.
 - Rosso, O. A., Larrondo, H. A., Martin, M. T., Plastino, A., & Fuentes, M. A. (2007). Distinguishing Noise from Chaos. *Physical Review Letters*, 99(15), 154102. (Introduces the complexity-entropy plane used in the planned [Renyi fingerprint](../research/open-problems.md).)
-- Shai, A. S., Marzen, S. E., Teixeira, L., Gietelink Oldenziel, A., & Riechers, P. M. (2024). Transformers Represent Belief State Geometry in their Residual Stream. In *Advances in Neural Information Processing Systems* (NeurIPS 2024). [arXiv:2405.15943](https://arxiv.org/abs/2405.15943).
+- Shai, A. S., Marzen, S. E., Teixeira, L., Gietelink Oldenziel, A., & Riechers, P. M. (2024). Transformers Represent Belief State Geometry in their Residual Stream. In *Advances in Neural Information Processing Systems* (NeurIPS 2024). [arXiv:2405.15943](https://arxiv.org/abs/2405.15943). [Proceedings](https://papers.nips.cc/paper_files/paper/2024/hash/8936fa1691764912d9519e1b5673ea66-Abstract-Conference.html).

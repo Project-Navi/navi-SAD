@@ -46,7 +46,7 @@ This is the full-generation mean delta, not PE. It says that specific heads beha
 
 For each (layer, head) pair, we extracted the SAD delta time series across generation steps, applied first-differencing to remove the position trend, and computed [permutation entropy](../theory/takens-embedding.md) (Bandt-Pompe, D=3, tau=1) on the resulting trajectory. We also computed PE on raw and residual (baseline-detrended) trajectories. We segmented each trajectory into early/mid/late thirds and computed full-sequence PE.
 
-**338 out of 1024 heads** show |Cohen's d| > 0.5 across 3 or more (mode, segment) combinations. The signal is not confined to one processing mode or one temporal segment --- the same heads recur.
+**338 out of 1024 heads** (32 layers x 32 heads per layer) show |Cohen's d| > 0.5 across 3 or more (mode, segment) combinations. The signal is not confined to one processing mode or one temporal segment --- the same heads recur.
 
 **Directional asymmetry: 4.6:1 positive.** Of the heads showing large effect sizes, 4.6 times as many have positive d (correct > incorrect PE) as negative. *Observed in pilot.* Correct generations have more complex attractor dynamics. Incorrect generations are more stereotyped --- lower ordinal complexity, fewer distinct temporal patterns.
 
@@ -58,7 +58,7 @@ For each (layer, head) pair, we extracted the SAD delta time series across gener
 
 First-differencing removes this trend. The per-head PE signal persists after detrending. The position confound is real, but the signal survives the correction.
 
-Full position-aware SAD normalization --- adjusting for the denominator growth analytically rather than by differencing --- is [deferred](open-problems.md) (IA F-09). First-differencing is a pragmatic correction, not a principled one.
+Full position-aware SAD normalization --- adjusting for the denominator growth analytically rather than by differencing --- is [deferred](open-problems.md). First-differencing is a pragmatic correction, not a principled one.
 
 ### Shadow scorer dead
 
@@ -68,7 +68,7 @@ Manual labels (3-reviewer majority vote, 92% unanimous) are canonical for all pi
 
 ## Hypothesis revised
 
-**SAD is not a truth detector.** *Frozen decision.* It is a dynamical systems probe that reconstructs per-head attractor structure via [delay-coordinate embedding](../theory/takens-embedding.md).
+**SAD is not a truth detector.** *Frozen decision --- this architectural choice will not be revisited based on pilot results.* It is a dynamical systems probe that reconstructs per-head attractor structure via [delay-coordinate embedding](../theory/takens-embedding.md).
 
 The theoretical anchor is Shai et al. ([arXiv:2405.15943](https://arxiv.org/abs/2405.15943)): transformers construct belief state geometry in their residual streams, and that geometry can be genuinely fractal for non-unifilar inference processes. The pilot's per-head PE asymmetry is consistent with this --- correct generations requiring the model to track more complex belief states, producing richer attractor dynamics in the heads that participate in that tracking.
 

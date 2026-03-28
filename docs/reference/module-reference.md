@@ -59,3 +59,9 @@
 ### `signal/pe_features.py`
 
 - `extract_pe_features(records, D, tau)` --- SAD-specific PE wrapper. Per-(layer, head) extraction, first-differencing, detrending, segmentation, eligibility gating (minimum 2*D! points).
+
+## Not yet ported
+
+| Module | Language | Responsibility |
+|--------|----------|---------------|
+| `navi_dsc_renyi.h` | C++ (production kernel, not in this repo) | Renyi entropy, Renyi complexity (Jensen-Renyi divergence from uniform), and parametric fingerprint curves. See [Open Problem 4](../research/open-problems.md). |

@@ -84,7 +84,7 @@ The tiers follow the [Neel Nanda pattern](https://www.neelnanda.io/mechanistic-i
 
 **Why it matters:** With 1024 heads times multiple modes and segments, multiple-comparison inflation is a real concern. The permutation null directly answers: "could this signal arise from random label assignment?" If the observed recurrence count and asymmetry ratio fall within the null distribution, the pilot signal is an artifact. If they fall outside, the signal is robust to relabeling.
 
-**What you need:** Pilot artifacts, the analysis module (to be built under `src/navi_sad/analysis/`), and a clear specification of the test statistic. Spec and plan are complete (`docs/plans/PE_RECURRENCE_NULL_PLAN.md`). The implementation requires eligibility accounting --- heads that are ineligible for PE at a given D must be excluded from the null as well as the observed statistic.
+**What you need:** Pilot artifacts, the analysis module (to be built under `src/navi_sad/analysis/`), and a clear specification of the test statistic. The experimental design is specified in the repository (see the internal plans directory). The implementation requires eligibility accounting --- heads that are ineligible for PE at a given D must be excluded from the null as well as the observed statistic.
 
 **What success looks like:** A permutation p-value for the recurrence count (338/1024) and the asymmetry ratio (4.6:1). Either "p < 0.05, the signal survives relabeling" or "p > 0.05, the signal is consistent with multiple-comparison noise." Both outcomes are useful.
 

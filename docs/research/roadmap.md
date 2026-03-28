@@ -24,6 +24,8 @@ The first three milestones built the core SAD instrument and proved it works mec
 
 The [40-sample TruthfulQA pilot](pilot-findings.md) killed the naive hypothesis --- grand-mean SAD does not separate correct from incorrect generations (0.006 gap on ~0.30 baseline). But it surfaced per-head PE structure: 338/1024 heads with |d|>0.5 on first-differenced trajectories, a 4.6:1 directional asymmetry (correct = more complex dynamics), and cross-mode recurrence. The PE feature layer (`pe_features.py`) was built to extract this signal properly: per-(layer, head), first-differencing, detrending, segmentation, eligibility gating.
 
+The shadow scorer (string-level matching against TruthfulQA answer lists) achieved 10% agreement with human reviewers and is retired. Manual 3-reviewer majority vote is canonical for all pilot analysis.
+
 This is where the project changed direction. SAD is not a truth detector. It is a [dynamical systems probe](../theory/sad-instrument.md) that reconstructs per-head attractor structure via [Takens' delay-coordinate embedding](../theory/takens-embedding.md).
 
 ## Where we are
@@ -68,7 +70,7 @@ The proof connecting fd-formalization's (u,v)-flower graph construction to non-u
 
 ### Priority 5: Polish pass
 
-PerStepDict boundary type, fail-closed fixes, type annotations, named constants, CI coverage for scripts/, test gaps, CLAUDE.md refresh. Spec and plan complete (`docs/plans/POLISH_PASS_SPEC.md`, `docs/plans/POLISH_PASS_PLAN.md`). This is housekeeping that makes everything downstream more reliable.
+PerStepDict boundary type, fail-closed fixes, type annotations, named constants, CI coverage for scripts/, test gaps, CLAUDE.md refresh. Design spec and implementation plan are complete (see the internal plans directory). This is housekeeping that makes everything downstream more reliable.
 
 ### Priority 6: Renyi fingerprint
 
@@ -78,7 +80,7 @@ Port Renyi entropy parameter sweeps (q in [0.1, 7.0]) and Renyi complexity (Jens
 
 ### Priority 7: Permutation null test
 
-Stratified permutation null on the recurrence statistic with eligibility accounting. Analysis module under `src/navi_sad/analysis/`. Spec and plan complete (`docs/plans/PE_RECURRENCE_NULL_PLAN.md`).
+Stratified permutation null on the recurrence statistic with eligibility accounting. Analysis module under `src/navi_sad/analysis/`. Experimental design is specified in the repository.
 
 **Why it matters:** The 338/1024 heads and 4.6:1 asymmetry from the pilot are meaningless without a null distribution. The permutation test determines whether the observed pattern is distinguishable from what you would get by shuffling labels while preserving class sizes. If it is not, the pilot signal is a multiple-comparison artifact.
 
