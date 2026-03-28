@@ -15,6 +15,8 @@ from navi_sad.stats.effect_size import compute_cohens_d
 # Outer: (mode, segment) -> inner: (layer, head) -> {dataset_index: pe_value}
 PELookup = dict[tuple[str, str], dict[tuple[int, int], dict[int, float]]]
 
+CANONICAL_LABELS = frozenset({"correct", "incorrect"})
+
 # Frozen contract: 3 modes x 4 segments = 12 combos per head.
 EXPECTED_COMBOS: frozenset[tuple[str, str]] = frozenset(
     (mode, segment)
@@ -112,9 +114,16 @@ def compute_recurrence(
         (RecurrenceStatistic, RecurrenceProfile) tuple.
 
     Raises:
-        ValueError: If num_layers or num_heads is non-positive, or if
-            the PE lookup contains heads outside the declared grid.
+        ValueError: If num_layers or num_heads is non-positive, if labels
+            contain non-canonical values, or if the PE lookup contains
+            heads outside the declared grid.
     """
+    stray = set(labels.values()) - CANONICAL_LABELS
+    if stray:
+        raise ValueError(
+            f"Labels contain non-canonical values: {sorted(stray)}. "
+            f"Only {sorted(CANONICAL_LABELS)} are accepted."
+        )
     if num_layers < 1 or num_heads < 1:
         raise ValueError(
             f"num_layers and num_heads must be >= 1, "

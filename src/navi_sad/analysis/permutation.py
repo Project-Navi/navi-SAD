@@ -137,7 +137,8 @@ def compute_null_result(
     p_value = (k + 1) / (n + 1)
 
     mean_val = sum(null_counts) / n if n > 0 else 0.0
-    # Population std: null_counts is the complete discrete distribution, not a sample.
+    # Descriptive SD of the Monte Carlo null sample (divides by N, not N-1).
+    # Not used in the p-value computation — summary statistic only.
     variance = sum((x - mean_val) ** 2 for x in null_counts) / n if n > 0 else 0.0
     std_val = math.sqrt(variance)
 

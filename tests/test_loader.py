@@ -163,6 +163,18 @@ class TestLoadAndValidate:
         with pytest.raises(ValueError, match="No analyzable samples"):
             load_and_validate(Path(str(d)))
 
+    def test_malformed_per_step_raises(self, tmp_path: object) -> None:
+        """Per-step records with missing required keys must be rejected at boundary."""
+        s = _make_sample(1)
+        s["per_step"] = [{"step_idx": 0}]  # missing layer_idx and per_head_delta
+        samples = [s]
+        reviews = [_make_review(1, human_label="correct")]
+        d = _write_artifacts(tmp_path, samples, reviews)
+        from pathlib import Path
+
+        with pytest.raises(ValueError, match="missing required keys"):
+            load_and_validate(Path(str(d)))
+
     def test_provenance_paths_recorded(self, tmp_path: object) -> None:
         samples = [_make_sample(1)]
         reviews = [_make_review(1, human_label="correct")]

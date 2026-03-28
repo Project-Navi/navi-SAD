@@ -29,6 +29,42 @@ class AnalysisInput:
     review_path: str
 
 
+_PER_STEP_REQUIRED_KEYS = {"step_idx", "layer_idx", "per_head_delta"}
+
+
+def _validate_per_step_records(
+    per_step_data: dict[int, list[dict[str, Any]]],
+) -> None:
+    """Validate per-step record shape at the load boundary.
+
+    Each per-step record must have step_idx (int), layer_idx (int),
+    and per_head_delta (list of numbers). Rejects malformed records
+    here instead of relying on downstream parse failure.
+
+    Raises:
+        ValueError: If any record is missing required keys or has wrong types.
+    """
+    for idx, records in per_step_data.items():
+        if not isinstance(records, list):
+            raise ValueError(f"Sample {idx}: per_step must be a list, got {type(records).__name__}")
+        for i, rec in enumerate(records):
+            if not isinstance(rec, dict):
+                raise ValueError(
+                    f"Sample {idx}, record {i}: per_step entry must be a dict, "
+                    f"got {type(rec).__name__}"
+                )
+            missing = _PER_STEP_REQUIRED_KEYS - set(rec.keys())
+            if missing:
+                raise ValueError(
+                    f"Sample {idx}, record {i}: missing required keys: {sorted(missing)}"
+                )
+            if not isinstance(rec["per_head_delta"], list):
+                raise ValueError(
+                    f"Sample {idx}, record {i}: per_head_delta must be a list, "
+                    f"got {type(rec['per_head_delta']).__name__}"
+                )
+
+
 def load_and_validate(
     results_dir: Path,
 ) -> AnalysisInput:
@@ -94,6 +130,10 @@ def load_and_validate(
     labels = {s["dataset_index"]: labels_raw[s["dataset_index"]] for s in included}
     token_counts = {s["dataset_index"]: s["generated_token_count"] for s in included}
     per_step_data = {s["dataset_index"]: s["per_step"] for s in included}
+
+    # Validate per-step record shape at the boundary.
+    # Reject malformed records here instead of relying on downstream parse failure.
+    _validate_per_step_records(per_step_data)
 
     n_correct = sum(1 for v in labels.values() if v == "correct")
     n_incorrect = sum(1 for v in labels.values() if v == "incorrect")

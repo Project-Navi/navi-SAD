@@ -25,10 +25,11 @@ class TestAssignLengthBins:
         token_counts = {1: 50, 2: 60, 3: 150, 4: 200}
         labels = {1: "correct", 2: "incorrect", 3: "correct", 4: "incorrect"}
         bins, boundaries = assign_length_bins(token_counts, labels, n_bins=2)
-        # Median of [50, 60, 150, 200] = 105
+        # Upper-median rank split: boundary = sorted_counts[n//2] = 150
         assert len(boundaries) == 1
-        assert bins[1] == bins[2]  # both below median
-        assert bins[3] == bins[4]  # both above median
+        assert boundaries[0] == 150
+        assert bins[1] == bins[2]  # both below boundary
+        assert bins[3] == bins[4]  # both at/above boundary
         assert bins[1] != bins[3]
 
     def test_single_bin(self) -> None:
@@ -93,6 +94,15 @@ class TestStratifiedPermuteLabels:
         r1 = stratified_permute_labels(labels, bins, random.Random(42))
         r2 = stratified_permute_labels(labels, bins, random.Random(99))
         assert r1 != r2
+
+    def test_insertion_order_independent(self) -> None:
+        """Same items in different insertion order -> identical shuffled output."""
+        labels_a = {1: "correct", 2: "incorrect", 3: "correct", 4: "incorrect"}
+        labels_b = {4: "incorrect", 1: "correct", 3: "correct", 2: "incorrect"}
+        bins = dict.fromkeys(range(1, 5), 0)
+        r_a = stratified_permute_labels(labels_a, bins, random.Random(42))
+        r_b = stratified_permute_labels(labels_b, bins, random.Random(42))
+        assert r_a == r_b
 
 
 class TestComputeNullResult:

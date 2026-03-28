@@ -8,6 +8,7 @@ from navi_sad.analysis.recurrence import (
     compute_recurrence,
     validate_combo_set,
 )
+from navi_sad.analysis.report import build_provenance, format_markdown
 from navi_sad.analysis.types import (
     EligibilityCell,
     EligibilityTable,
@@ -29,7 +30,9 @@ __all__ = [
     "RecurrenceStatistic",
     "build_eligibility_table",
     "build_pe_lookup",
+    "build_provenance",
     "compute_recurrence",
+    "format_markdown",
     "load_and_validate",
     "run_permutation_null",
     "validate_combo_set",
