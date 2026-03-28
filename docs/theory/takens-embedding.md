@@ -79,7 +79,7 @@ PE(D) = \frac{H(D)}{\ln(D!)}
 
 **Eligibility.** PE is structurally computable from as few as one ordinal window, but statistically unreliable with too few. The instrument enforces a minimum of \( 2 \times D! \) eligible (non-tied) windows before reporting a PE value. This is a policy threshold --- stricter than the mathematical minimum --- chosen so that every possible pattern has room to appear at least twice.
 
-**Current parameters.** We use \( D = 3 \), \( \tau = 1 \). This gives \( 3! = 6 \) possible ordinal patterns and requires sequences of at least 14 eligible windows. \( D = 3 \) is the minimum dimension that captures non-trivial temporal structure (two-point patterns can only be "up" or "down"). A D-sweep to \( D = 4 \) is [planned](../research/open-problems.md) --- feasible under the \( 2 \times D! \) policy --- but \( D \geq 5 \) requires longer sequences or a relaxed eligibility threshold.
+**Current parameters.** We use \( D = 3 \), \( \tau = 1 \). This gives \( 3! = 6 \) possible ordinal patterns and requires sequences of at least 14 eligible windows. \( D = 3 \) is the minimum dimension that captures non-trivial temporal structure (two-point patterns can only be "up" or "down"). A D-sweep to \( D = 4 \) is [planned](../research/open-problems.md) --- feasible under the \( 2 \times D! \) policy --- but \( D \geq 5 \) requires longer sequences or a relaxed eligibility threshold. The principled method for choosing embedding dimension is the False Nearest Neighbors (FNN) algorithm (Kennel, Brown & Abarbanel, 1992), which identifies when adding a dimension no longer "unfolds" previously overlapping attractor regions; the D-sweep is an empirical analog for our short sequences.
 
 ## The connection: SAD trajectories as delay-coordinate observables
 
@@ -117,6 +117,9 @@ This gives Gate 3 its design logic. Synthetic HMMs with known unifilarity proper
 **References**
 
 - Takens, F. (1981). Detecting strange attractors in turbulence. In *Dynamical Systems and Turbulence*, Lecture Notes in Mathematics, vol. 898. Springer-Verlag, pp. 366--381.
-- Sauer, T., Yorke, J. A., & Casdagli, M. (1991). Embedology. *Journal of Statistical Physics*, 65(3--4), 579--616.
+- Mane, R. (1981). On the dimension of the compact invariant sets of certain nonlinear maps. In *Dynamical Systems and Turbulence*, Lecture Notes in Mathematics, vol. 898. Springer-Verlag, pp. 230--242.
+- Kennel, M. B., Brown, R., & Abarbanel, H. D. I. (1992). Determining embedding dimension for phase-space reconstruction using a geometrical construction. *Physical Review A*, 45(6), 3403--3411.
+- Sauer, T., Yorke, J. A., & Casdagli, M. (1991). Embedology. *Journal of Statistical Physics*, 65(3--4), 579--616. (Generalizes Takens and Mane to attractors with box-counting dimension \( d_A \), requiring \( D > 2d_A \).)
 - Bandt, C. & Pompe, B. (2002). Permutation Entropy: A Natural Complexity Measure for Time Series. *Physical Review Letters*, 88(17), 174102.
+- Rosso, O. A., Larrondo, H. A., Martin, M. T., Plastino, A., & Fuentes, M. A. (2007). Distinguishing Noise from Chaos. *Physical Review Letters*, 99(15), 154102. (Introduces the complexity-entropy plane used in the planned [Renyi fingerprint](../research/open-problems.md).)
 - Shai, A. S., Marzen, S. E., Teixeira, L., Gietelink Oldenziel, A., & Riechers, P. M. (2024). Transformers Represent Belief State Geometry in their Residual Stream. In *Advances in Neural Information Processing Systems* (NeurIPS 2024). [arXiv:2405.15943](https://arxiv.org/abs/2405.15943).

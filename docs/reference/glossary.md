@@ -18,10 +18,10 @@ Terms used across the navi-SAD documentation. Definitions are project-specific w
 :   Reconstructing a dynamical system's state space from a single scalar time series by plotting each value against its time-delayed predecessors. Justified by [Takens' embedding theorem](../theory/takens-embedding.md) (1981).
 
 **Epsilon-machine**
-:   The minimal unifilar hidden Markov model that generates a given process. From computational mechanics (Crutchfield & Young, 1989).
+:   The minimal unifilar hidden Markov model that generates a given process. From computational mechanics (Crutchfield, J. P. & Young, K., 1989, "Inferring Statistical Complexity," *Physical Review Letters*, 63, 105--108).
 
 **GQA (Grouped Query Attention)**
-:   An attention variant where multiple query heads share key-value heads. Mistral-7B uses GQA (32 query heads, 8 KV heads). The [adapter](../instrument/adapter-discipline.md) expands KV heads to match query heads before computing divergence.
+:   An attention variant where multiple query heads share key-value heads (Ainslie et al., EMNLP 2023, [arXiv:2305.13245](https://arxiv.org/abs/2305.13245)). Mistral-7B uses GQA (32 query heads, 8 KV heads). The [adapter](../instrument/adapter-discipline.md) expands KV heads to match query heads before computing divergence.
 
 **Non-unifilar**
 :   A hidden Markov model where the current observation does not uniquely determine the hidden state transition. Non-unifilar processes have fractal belief state geometry.

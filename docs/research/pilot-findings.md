@@ -36,7 +36,7 @@ When we stopped averaging and looked at individual (layer, head) pairs, structur
 
 ### Per-(layer, head) mean delta has structure
 
-*Observed in pilot.* Using the leading-answer-span measurement boundary, 294 out of 1024 heads show |Cohen's d| > 0.5 between correct and incorrect groups. Late layers (roughly L24--L31) flip sign relative to early and mid layers --- the direction of the SAD divergence reverses with depth.
+*Observed in pilot.* Using the leading-answer-span measurement boundary, 294 out of 1024 heads show |Cohen's d| > 0.5 (the conventional "medium" threshold; Cohen, 1988) between correct and incorrect groups. This threshold is not calibrated to this pilot --- different thresholds produce different head counts. Late layers (roughly L24--L31) flip sign relative to early and mid layers --- the direction of the SAD divergence reverses with depth.
 
 This is the full-generation mean delta, not PE. It says that specific heads behave differently when the model generates correctly versus incorrectly, and that this difference has spatial structure across the layer axis.
 

@@ -98,6 +98,10 @@ The [pilot findings](../research/pilot-findings.md) show that the interesting si
 
 ---
 
+Note: the formulation above omits the scaling factor \( \sqrt{d_k} \) from the standard softmax presentation (Vaswani et al., 2017). The scaling does not affect the injectivity argument. The ELU+1 feature map \( \phi(x) = \text{elu}(x) + 1 \) used in the navi-SAD instrument is the specific choice introduced by Katharopoulos et al. (2020); the normalizer \( z = \sum_j \phi(K_j) \) grows linearly with sequence length, which is the source of the [position confound](../research/pilot-findings.md#position-confound-confirmed-and-addressed) in SAD trajectories.
+
 **References**
 
 - Han, D., Ye, Y., Xia, Z., Han, Y., Pan, X., Li, X., Lu, J., Song, S., & Huang, G. (2024). Bridging the Divide: Reconsidering Softmax and Linear Attention. In *Advances in Neural Information Processing Systems* (NeurIPS 2024). [arXiv:2412.06590](https://arxiv.org/abs/2412.06590).
+- Vaswani, A., Shazeer, N., Parmar, N., Uszkoreit, J., Jones, L., Gomez, A. N., Kaiser, L., & Polosukhin, I. (2017). Attention is All You Need. In *Advances in Neural Information Processing Systems* (NeurIPS 2017). [arXiv:1706.03762](https://arxiv.org/abs/1706.03762).
+- Katharopoulos, A., Vyas, A., Pappas, N., & Fleuret, F. (2020). Transformers are RNNs: Fast Autoregressive Transformers with Linear Attention. In *ICML 2020*. [arXiv:2006.16236](https://arxiv.org/abs/2006.16236).

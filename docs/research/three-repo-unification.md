@@ -42,7 +42,7 @@ The proof establishes: vertex count recurrence, hub distance $L_g = u^g$, two-si
 
 [navi-SAD](https://github.com/Project-Navi/navi-SAD) operationalizes the measurement. It runs softmax and linear attention in parallel on the same frozen weights, computes per-head [cosine divergence](../theory/sad-instrument.md) at each generation step, and treats the resulting scalar trajectories as [delay-coordinate embeddings](../theory/takens-embedding.md) of the model's internal dynamical state. [Permutation entropy](../reference/glossary.md#permutation-entropy-pe) on these trajectories characterizes the attractor's complexity.
 
-**What this layer says:** Given a running transformer, here is what we observe about per-head attractor structure during inference.
+**What this layer says:** Given a running transformer, here is what we observe about per-head attractor structure (in the sense of Sauer, Yorke & Casdagli, 1991: a compact invariant set characterized by its box-counting dimension) during inference.
 
 **Verification status:** Instrument validation (Gates 0--2) [complete](../instrument/gate-discipline.md). Attractor characterization is theoretically motivated but not yet empirically grounded. Gate 3 tests the critical prediction.
 
