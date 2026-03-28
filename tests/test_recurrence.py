@@ -96,6 +96,17 @@ class TestComboCohensd:
         d_values = compute_combo_cohens_d({}, {})
         assert d_values == {}
 
+    def test_near_zero_variance_returns_none(self) -> None:
+        """Near-zero pooled variance must return None, not huge d."""
+        # Two groups where values differ by ~1e-15 (float rounding)
+        eps = 1e-16
+        head_pe: dict[tuple[int, int], dict[int, float]] = {
+            (0, 0): {1: 0.5, 2: 0.5 + eps, 3: 0.5, 4: 0.5 + eps}
+        }
+        labels = {1: "correct", 2: "correct", 3: "incorrect", 4: "incorrect"}
+        d_values = compute_combo_cohens_d(head_pe, labels)
+        assert d_values[(0, 0)] is None
+
 
 class TestComputeRecurrence:
     def test_hand_built_recurrence(self) -> None:

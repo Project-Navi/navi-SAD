@@ -83,11 +83,14 @@ def validate_combo_set(
         )
 
 
+_POOLED_VAR_EPS = 1e-12
+
+
 def _cohens_d_vectorized(
     correct_vals: np.ndarray,
     incorrect_vals: np.ndarray,
 ) -> float | None:
-    """Compute Cohen's d using numpy. Returns None if insufficient data."""
+    """Compute Cohen's d using numpy. Returns None if insufficient data or degenerate."""
     n_a = len(correct_vals)
     n_b = len(incorrect_vals)
     if n_a < 2 or n_b < 2:
@@ -97,7 +100,7 @@ def _cohens_d_vectorized(
     var_a = correct_vals.var(ddof=1)
     var_b = incorrect_vals.var(ddof=1)
     pooled_var = ((n_a - 1) * var_a + (n_b - 1) * var_b) / (n_a + n_b - 2)
-    if pooled_var == 0.0:
+    if pooled_var <= _POOLED_VAR_EPS:
         return None
     return float((mean_a - mean_b) / np.sqrt(pooled_var))
 
