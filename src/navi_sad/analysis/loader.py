@@ -58,11 +58,25 @@ def _validate_per_step_records(
                 raise ValueError(
                     f"Sample {idx}, record {i}: missing required keys: {sorted(missing)}"
                 )
+            # Type validation: int fields must be int (not bool, not str)
+            for int_field in ("step_idx", "layer_idx"):
+                val = rec[int_field]
+                if not isinstance(val, int) or isinstance(val, bool):
+                    raise ValueError(
+                        f"Sample {idx}, record {i}: {int_field} must be int, "
+                        f"got {type(val).__name__}: {val!r}"
+                    )
             if not isinstance(rec["per_head_delta"], list):
                 raise ValueError(
                     f"Sample {idx}, record {i}: per_head_delta must be a list, "
                     f"got {type(rec['per_head_delta']).__name__}"
                 )
+            for j, delta in enumerate(rec["per_head_delta"]):
+                if not isinstance(delta, (int, float)) or isinstance(delta, bool):
+                    raise ValueError(
+                        f"Sample {idx}, record {i}: per_head_delta[{j}] must be "
+                        f"numeric, got {type(delta).__name__}: {delta!r}"
+                    )
 
 
 def load_and_validate(

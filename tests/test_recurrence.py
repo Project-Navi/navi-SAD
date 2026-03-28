@@ -232,6 +232,20 @@ class TestComputeRecurrence:
                 num_heads=1,
             )
 
+    def test_stray_labels_raises(self) -> None:
+        """Non-canonical labels must raise, not be silently ignored."""
+        lookup: dict = {("raw", "full"): {(0, 0): {1: 0.5, 2: 0.5}}}
+        labels = {1: "correct", 2: "ambiguous"}
+        with pytest.raises(ValueError, match="non-canonical"):
+            compute_recurrence(
+                lookup,
+                labels,
+                d_threshold=0.5,
+                min_combos=1,
+                num_layers=1,
+                num_heads=1,
+            )
+
     def test_zero_dimensions_raises(self) -> None:
         """Non-positive num_layers or num_heads must raise."""
         with pytest.raises(ValueError, match="num_layers"):

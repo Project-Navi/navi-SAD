@@ -128,7 +128,11 @@ def format_markdown(
         "The 1024 head-level tests are not independent. "
         "Grouped/cluster-aware analysis is a separate follow-up."
     )
-    lines.append("- **Small n:** 9 incorrect vs 28 correct. All effect sizes are exploratory.")
+    n_inc = provenance.get("n_incorrect", "?")
+    n_cor = provenance.get("n_correct", "?")
+    lines.append(
+        f"- **Small n:** {n_inc} incorrect vs {n_cor} correct. All effect sizes are exploratory."
+    )
     lines.append(
         "- **Transform-family dependence:** Raw, diff, and residual modes "
         "are transforms of the same series. Cross-mode recurrence is "

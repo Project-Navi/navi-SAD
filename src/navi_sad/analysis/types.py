@@ -1,6 +1,8 @@
 """Typed inputs and outputs for PE recurrence null analysis.
 
 Frozen dataclasses only. No computation logic.
+PermutationNullConfig has __post_init__ validation; the rest
+are frozen containers with to_dict() serialization.
 """
 
 from __future__ import annotations

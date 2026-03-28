@@ -175,6 +175,36 @@ class TestLoadAndValidate:
         with pytest.raises(ValueError, match="missing required keys"):
             load_and_validate(Path(str(d)))
 
+    def test_string_step_idx_raises(self, tmp_path: object) -> None:
+        """step_idx must be int, not str."""
+        s = _make_sample(1)
+        s["per_step"] = [{"step_idx": "0", "layer_idx": 0, "per_head_delta": [0.1]}]
+        d = _write_artifacts(tmp_path, [s], [_make_review(1)])
+        from pathlib import Path
+
+        with pytest.raises(ValueError, match="step_idx must be int"):
+            load_and_validate(Path(str(d)))
+
+    def test_none_layer_idx_raises(self, tmp_path: object) -> None:
+        """layer_idx must be int, not None."""
+        s = _make_sample(1)
+        s["per_step"] = [{"step_idx": 0, "layer_idx": None, "per_head_delta": [0.1]}]
+        d = _write_artifacts(tmp_path, [s], [_make_review(1)])
+        from pathlib import Path
+
+        with pytest.raises(ValueError, match="layer_idx must be int"):
+            load_and_validate(Path(str(d)))
+
+    def test_string_delta_element_raises(self, tmp_path: object) -> None:
+        """per_head_delta elements must be numeric, not str."""
+        s = _make_sample(1)
+        s["per_step"] = [{"step_idx": 0, "layer_idx": 0, "per_head_delta": ["0.1", 0.2]}]
+        d = _write_artifacts(tmp_path, [s], [_make_review(1)])
+        from pathlib import Path
+
+        with pytest.raises(ValueError, match=r"per_head_delta.*must be numeric"):
+            load_and_validate(Path(str(d)))
+
     def test_provenance_paths_recorded(self, tmp_path: object) -> None:
         samples = [_make_sample(1)]
         reviews = [_make_review(1, human_label="correct")]
