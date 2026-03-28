@@ -17,7 +17,7 @@ import logging
 from pathlib import Path
 
 from navi_sad.analysis.eligibility import build_eligibility_table
-from navi_sad.analysis.loader import load_and_validate
+from navi_sad.analysis.loader import load_and_validate, step_records_to_dicts
 from navi_sad.analysis.permutation import run_permutation_null
 from navi_sad.analysis.recurrence import (
     build_pe_lookup,
@@ -73,15 +73,17 @@ def main() -> None:
 
     all_head_series = []
     for idx in sorted(data.per_step_data):
-        hs = extract_head_sad_series(data.per_step_data[idx], NUM_LAYERS, NUM_HEADS)
+        per_step_dicts = step_records_to_dicts(data.per_step_data[idx])
+        hs = extract_head_sad_series(per_step_dicts, NUM_LAYERS, NUM_HEADS)
         all_head_series.append(hs)
 
     baseline = compute_positional_baseline(all_head_series)
 
     pe_samples = {}
     for idx in sorted(data.per_step_data):
+        per_step_dicts = step_records_to_dicts(data.per_step_data[idx])
         pe = compute_sample_pe_features(
-            data.per_step_data[idx],
+            per_step_dicts,
             NUM_LAYERS,
             NUM_HEADS,
             idx,
