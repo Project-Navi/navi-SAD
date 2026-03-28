@@ -3,6 +3,7 @@
 from navi_sad.analysis.eligibility import build_eligibility_table
 from navi_sad.analysis.loader import AnalysisInput, load_and_validate
 from navi_sad.analysis.permutation import run_permutation_null
+from navi_sad.analysis.prep import PEBundle, SeriesData, compute_pe_bundle, prepare_series_data
 from navi_sad.analysis.recurrence import (
     build_pe_lookup,
     compute_d_matrix,
@@ -26,18 +27,22 @@ __all__ = [
     "AnalysisInput",
     "EligibilityCell",
     "EligibilityTable",
+    "PEBundle",
     "PermutationNullConfig",
     "PermutationNullResult",
     "RecurrenceNullReport",
     "RecurrenceProfile",
     "RecurrenceStatistic",
+    "SeriesData",
     "build_eligibility_table",
     "build_pe_lookup",
     "build_provenance",
     "compute_d_matrix",
+    "compute_pe_bundle",
     "compute_recurrence",
     "format_markdown",
     "load_and_validate",
+    "prepare_series_data",
     "recurrence_from_d_matrix",
     "run_permutation_null",
     "summarize_d_matrix",

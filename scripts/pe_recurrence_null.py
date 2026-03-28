@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 """PE Recurrence Null Test — thin CLI entry point.
 
-Loads validated artifacts, computes PE features, calls analysis
-modules, writes structured results. All boundary validation,
-provenance, and rendering live in tested modules.
+Pure glue: parse args, call tested modules, write outputs.
+All preparation, computation, and rendering live in tested modules.
 
 Usage:
     python scripts/pe_recurrence_null.py [--results-dir PATH] [--n-permutations N]
@@ -16,23 +15,16 @@ import json
 import logging
 from pathlib import Path
 
-from navi_sad.analysis.eligibility import build_eligibility_table
-from navi_sad.analysis.loader import load_and_validate, step_records_to_dicts
 from navi_sad.analysis.permutation import run_permutation_null
+from navi_sad.analysis.prep import compute_pe_bundle, prepare_series_data
 from navi_sad.analysis.recurrence import (
-    build_pe_lookup,
     compute_d_matrix,
     summarize_d_matrix,
     validate_combo_set,
 )
 from navi_sad.analysis.report import build_provenance, format_markdown
 from navi_sad.analysis.types import PermutationNullConfig, RecurrenceNullReport
-from navi_sad.signal.pe_features import (
-    PEConfig,
-    compute_positional_baseline,
-    compute_sample_pe_features,
-    extract_head_sad_series,
-)
+from navi_sad.signal.pe_features import PEConfig
 
 logger = logging.getLogger(__name__)
 
@@ -62,47 +54,28 @@ def main() -> None:
 
     results_dir = Path(args.results_dir)
 
-    # Load and validate artifacts (rejects on integrity violations)
-    logger.info("Loading and validating artifacts from %s", results_dir)
-    data = load_and_validate(results_dir)
-    logger.info("Included: %d correct, %d incorrect", data.n_correct, data.n_incorrect)
+    # Prepare (load, validate, extract series, compute baseline)
+    logger.info("Preparing series data from %s", results_dir)
+    series_data = prepare_series_data(results_dir, num_layers=NUM_LAYERS, num_heads=NUM_HEADS)
+    logger.info(
+        "Included: %d correct, %d incorrect",
+        series_data.input.n_correct,
+        series_data.input.n_incorrect,
+    )
 
-    # Compute PE features
-    logger.info("Computing PE features (3 modes x 4 segments)...")
+    # Compute PE features at D=3
+    logger.info("Computing PE bundle (D=3)...")
     pe_config = PEConfig()
+    bundle = compute_pe_bundle(series_data, pe_config)
 
-    all_head_series = []
-    for idx in sorted(data.per_step_data):
-        per_step_dicts = step_records_to_dicts(data.per_step_data[idx])
-        hs = extract_head_sad_series(per_step_dicts, NUM_LAYERS, NUM_HEADS)
-        all_head_series.append(hs)
+    # Validate 12-combo contract
+    validate_combo_set(bundle.lookup)
 
-    baseline = compute_positional_baseline(all_head_series)
-
-    pe_samples = {}
-    for idx in sorted(data.per_step_data):
-        per_step_dicts = step_records_to_dicts(data.per_step_data[idx])
-        pe = compute_sample_pe_features(
-            per_step_dicts,
-            NUM_LAYERS,
-            NUM_HEADS,
-            idx,
-            config=pe_config,
-            baseline=baseline,
-            modes=("raw", "diff"),
-            include_segments=True,
-        )
-        pe_samples[idx] = pe
-
-    # Eligibility + PE lookup + 12-combo contract validation
-    logger.info("Building eligibility table...")
-    eligibility = build_eligibility_table(pe_samples, data.labels)
-    lookup = build_pe_lookup(pe_samples)
-    validate_combo_set(lookup)
-
-    # Compute and persist the full d matrix (never discard d values)
+    # Compute d matrix (never discard d values)
     logger.info("Computing d matrix...")
-    d_matrix = compute_d_matrix(lookup, data.labels, num_layers=NUM_LAYERS, num_heads=NUM_HEADS)
+    d_matrix = compute_d_matrix(
+        bundle.lookup, series_data.input.labels, num_layers=NUM_LAYERS, num_heads=NUM_HEADS
+    )
     d_summary = summarize_d_matrix(d_matrix)
     logger.info(
         "d matrix: max|d|=%.4f, mean|d|=%.4f, positive=%.1f%%, threshold sweep: %s",
@@ -112,7 +85,7 @@ def main() -> None:
         d_summary.get("threshold_sweep", {}),
     )
 
-    # Null test
+    # Permutation null
     config = PermutationNullConfig(
         n_permutations=args.n_permutations,
         seed=args.seed,
@@ -125,9 +98,9 @@ def main() -> None:
         config.seed,
     )
     report = run_permutation_null(
-        lookup,
-        data.labels,
-        data.token_counts,
+        bundle.lookup,
+        series_data.input.labels,
+        series_data.input.token_counts,
         config=config,
         num_layers=NUM_LAYERS,
         num_heads=NUM_HEADS,
@@ -136,7 +109,7 @@ def main() -> None:
     # Attach eligibility (construct new frozen report)
     report = RecurrenceNullReport(
         config=report.config,
-        eligibility=eligibility,
+        eligibility=bundle.eligibility,
         observed=report.observed,
         observed_profile=report.observed_profile,
         null_at_min_combos=report.null_at_min_combos,
@@ -146,7 +119,7 @@ def main() -> None:
     )
 
     # Provenance + output
-    provenance = build_provenance(data, pe_config, NUM_LAYERS, NUM_HEADS)
+    provenance = build_provenance(series_data.input, pe_config, NUM_LAYERS, NUM_HEADS)
 
     json_path = results_dir / "pe_recurrence_null.json"
     report_dict = report.to_dict()
