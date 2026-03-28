@@ -223,7 +223,7 @@ def run_permutation_null(
 
     return RecurrenceNullReport(
         config=config,
-        eligibility=None,  # Set by caller after building eligibility table
+        eligibility=None,  # Caller constructs a new report with eligibility attached
         observed=observed_stat,
         observed_profile=observed_profile,
         null_at_min_combos=compute_null_result(
