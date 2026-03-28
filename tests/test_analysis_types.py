@@ -76,6 +76,22 @@ class TestPermutationNullConfig:
         assert cfg.n_permutations == 5000
         assert cfg.seed == 99
 
+    def test_zero_permutations_raises(self) -> None:
+        with pytest.raises(ValueError, match="n_permutations"):
+            PermutationNullConfig(n_permutations=0)
+
+    def test_negative_d_threshold_raises(self) -> None:
+        with pytest.raises(ValueError, match="d_threshold"):
+            PermutationNullConfig(d_threshold=-0.5)
+
+    def test_zero_min_combos_raises(self) -> None:
+        with pytest.raises(ValueError, match="min_combos"):
+            PermutationNullConfig(min_combos=0)
+
+    def test_zero_n_bins_raises(self) -> None:
+        with pytest.raises(ValueError, match="n_bins"):
+            PermutationNullConfig(n_bins=0)
+
 
 class TestRecurrenceStatistic:
     def test_construction(self) -> None:

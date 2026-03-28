@@ -96,6 +96,11 @@ class TestStratifiedPermuteLabels:
 
 
 class TestComputeNullResult:
+    def test_empty_null_counts_raises(self) -> None:
+        """Empty null_counts must raise, not produce fake p=1.0."""
+        with pytest.raises(ValueError, match="empty"):
+            compute_null_result(observed=5, null_counts=[])
+
     def test_p_value_bounds(self) -> None:
         result = compute_null_result(observed=5, null_counts=[3, 4, 5, 6, 7])
         assert 0.0 < result.p_value <= 1.0

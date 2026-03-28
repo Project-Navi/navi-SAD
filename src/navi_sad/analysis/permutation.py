@@ -33,7 +33,9 @@ def assign_length_bins(
     Returns:
         (bin_assignments, bin_boundaries).
         bin_assignments: dataset_index -> bin index (0-based).
-        bin_boundaries: sorted list of split points.
+        bin_boundaries: sorted list of split points. Boundaries are
+            exclusive lower bounds of the upper bin: a sample with
+            count == boundary goes to the upper bin (strict < comparison).
 
     Raises:
         ValueError: If input is empty or a bin has no samples of either class.
@@ -121,7 +123,15 @@ def compute_null_result(
 
     p-value uses Phipson-Smyth correction: (k + 1) / (N + 1)
     where k = count of null values >= observed.
+
+    Raises:
+        ValueError: If null_counts is empty (no permutations were run).
     """
+    if not null_counts:
+        raise ValueError(
+            "null_counts is empty — no permutations were run. "
+            "Cannot compute a p-value from zero permutations."
+        )
     n = len(null_counts)
     k = sum(1 for nc in null_counts if nc >= observed)
     p_value = (k + 1) / (n + 1)

@@ -6,6 +6,8 @@ absent/ineligible cell handling, no RNG involved.
 
 from __future__ import annotations
 
+import pytest
+
 from navi_sad.analysis.recurrence import (
     build_pe_lookup,
     compute_combo_cohens_d,
@@ -211,3 +213,33 @@ class TestComputeRecurrence:
         # Level 2: 1 head >= 2 combos
         assert profile.counts_at_level[1] == 2
         assert profile.counts_at_level[2] == 1
+
+    def test_out_of_grid_head_raises(self) -> None:
+        """Head outside declared grid must raise, not silently drop."""
+        lookup = {
+            ("raw", "full"): {
+                (5, 0): {1: 0.9, 2: 1.1, 3: 0.0, 4: 0.1},  # layer 5, but grid is 1x1
+            },
+        }
+        labels = {1: "correct", 2: "correct", 3: "incorrect", 4: "incorrect"}
+        with pytest.raises(ValueError, match="outside the declared grid"):
+            compute_recurrence(
+                lookup,
+                labels,
+                d_threshold=0.5,
+                min_combos=1,
+                num_layers=1,
+                num_heads=1,
+            )
+
+    def test_zero_dimensions_raises(self) -> None:
+        """Non-positive num_layers or num_heads must raise."""
+        with pytest.raises(ValueError, match="num_layers"):
+            compute_recurrence(
+                {},
+                {},
+                d_threshold=0.5,
+                min_combos=1,
+                num_layers=0,
+                num_heads=1,
+            )

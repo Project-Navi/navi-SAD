@@ -78,7 +78,16 @@ def compute_recurrence(
 
     Returns:
         (RecurrenceStatistic, RecurrenceProfile) tuple.
+
+    Raises:
+        ValueError: If num_layers or num_heads is non-positive, or if
+            the PE lookup contains heads outside the declared grid.
     """
+    if num_layers < 1 or num_heads < 1:
+        raise ValueError(
+            f"num_layers and num_heads must be >= 1, "
+            f"got num_layers={num_layers}, num_heads={num_heads}"
+        )
     # Initialize all heads to 0
     combo_counts: dict[tuple[int, int], int] = {}
     for layer in range(num_layers):
@@ -89,9 +98,14 @@ def compute_recurrence(
     for _combo_key, head_pe in lookup.items():
         d_values = compute_combo_cohens_d(head_pe, labels)
         for head_key, d_val in d_values.items():
+            if head_key not in combo_counts:
+                raise ValueError(
+                    f"Head {head_key} in PE lookup is outside the declared "
+                    f"grid ({num_layers} layers x {num_heads} heads). "
+                    f"Check that num_layers and num_heads match the data."
+                )
             if d_val is not None and abs(d_val) > d_threshold:
-                if head_key in combo_counts:
-                    combo_counts[head_key] += 1
+                combo_counts[head_key] += 1
 
     total_heads = num_layers * num_heads
     recurring = sum(1 for v in combo_counts.values() if v >= min_combos)

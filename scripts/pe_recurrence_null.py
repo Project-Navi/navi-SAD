@@ -152,12 +152,9 @@ def main() -> None:
         bin_counts=report.bin_counts,
     )
 
-    # Write JSON
+    # Write JSON (to_dict() already excludes null_counts — only summary stats)
     json_path = results_dir / "pe_recurrence_null.json"
     report_dict = report.to_dict()
-    # Drop raw null_counts from JSON (large array, keep summary only)
-    report_dict["null_at_min_combos"].pop("null_counts", None)
-    report_dict["null_at_seven"].pop("null_counts", None)
     with open(json_path, "w", encoding="utf-8") as f:
         json.dump(report_dict, f, indent=2)
     logger.info("Wrote %s", json_path)

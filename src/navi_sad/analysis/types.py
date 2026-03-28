@@ -66,6 +66,16 @@ class PermutationNullConfig:
     n_bins: int = 2
     seed: int = 42
 
+    def __post_init__(self) -> None:
+        if self.n_permutations < 1:
+            raise ValueError(f"n_permutations must be >= 1, got {self.n_permutations}")
+        if self.d_threshold <= 0:
+            raise ValueError(f"d_threshold must be > 0, got {self.d_threshold}")
+        if self.min_combos < 1:
+            raise ValueError(f"min_combos must be >= 1, got {self.min_combos}")
+        if self.n_bins < 1:
+            raise ValueError(f"n_bins must be >= 1, got {self.n_bins}")
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "n_permutations": self.n_permutations,
@@ -162,6 +172,6 @@ class RecurrenceNullReport:
             "observed_profile": self.observed_profile.to_dict(),
             "null_at_min_combos": self.null_at_min_combos.to_dict(),
             "null_at_seven": self.null_at_seven.to_dict(),
-            "bin_boundaries": self.bin_boundaries,
-            "bin_counts": self.bin_counts,
+            "bin_boundaries": list(self.bin_boundaries),
+            "bin_counts": {k: dict(v) for k, v in self.bin_counts.items()},
         }
