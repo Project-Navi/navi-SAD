@@ -2,7 +2,8 @@
 
 Proves: d matrix preserves values, recurrence_from_d_matrix matches
 compute_recurrence, summarize_d_matrix produces correct statistics,
-threshold sweep counts are consistent, directional counts are correct.
+threshold sweep counts are consistent, directional counts are correct,
+absent cells tracked explicitly.
 """
 
 from __future__ import annotations
@@ -16,6 +17,7 @@ from navi_sad.analysis.recurrence import (
     recurrence_from_d_matrix,
     summarize_d_matrix,
 )
+from navi_sad.analysis.types import DLandscape
 from navi_sad.signal.pe_features import HeadPEResult, PEConfig, SamplePEFeatures
 
 
@@ -65,12 +67,48 @@ def _build_lookup_and_labels() -> tuple[
     }
     lookup = {
         ("raw", "full"): {
-            (0, 0): {1: 0.91, 2: 0.89, 3: 0.92, 4: 0.88, 5: 0.11, 6: 0.09, 7: 0.12, 8: 0.08},
-            (0, 1): {1: 0.50, 2: 0.51, 3: 0.49, 4: 0.52, 5: 0.48, 6: 0.47, 7: 0.53, 8: 0.50},
+            (0, 0): {
+                1: 0.91,
+                2: 0.89,
+                3: 0.92,
+                4: 0.88,
+                5: 0.11,
+                6: 0.09,
+                7: 0.12,
+                8: 0.08,
+            },
+            (0, 1): {
+                1: 0.50,
+                2: 0.51,
+                3: 0.49,
+                4: 0.52,
+                5: 0.48,
+                6: 0.47,
+                7: 0.53,
+                8: 0.50,
+            },
         },
         ("diff", "full"): {
-            (0, 0): {1: 0.85, 2: 0.87, 3: 0.83, 4: 0.86, 5: 0.15, 6: 0.13, 7: 0.17, 8: 0.14},
-            (0, 1): {1: 0.45, 2: 0.55, 3: 0.50, 4: 0.48, 5: 0.52, 6: 0.46, 7: 0.51, 8: 0.49},
+            (0, 0): {
+                1: 0.85,
+                2: 0.87,
+                3: 0.83,
+                4: 0.86,
+                5: 0.15,
+                6: 0.13,
+                7: 0.17,
+                8: 0.14,
+            },
+            (0, 1): {
+                1: 0.45,
+                2: 0.55,
+                3: 0.50,
+                4: 0.48,
+                5: 0.52,
+                6: 0.46,
+                7: 0.51,
+                8: 0.49,
+            },
         },
     }
     return lookup, labels
@@ -82,13 +120,11 @@ class TestComputeDMatrix:
         lookup, labels = _build_lookup_and_labels()
         d_matrix = compute_d_matrix(lookup, labels, num_layers=1, num_heads=2)
 
-        # Head (0,0) has strong separation -> large |d|
         d_raw = d_matrix[("raw", "full")][(0, 0)]
         assert d_raw is not None
         assert isinstance(d_raw, float)
-        assert abs(d_raw) > 1.0  # strong separation
+        assert abs(d_raw) > 1.0
 
-        # Head (0,1) has weak separation -> small |d|
         d_weak = d_matrix[("raw", "full")][(0, 1)]
         assert d_weak is not None
         assert abs(d_weak) < 1.0
@@ -117,7 +153,6 @@ class TestComputeDMatrix:
             compute_d_matrix(lookup, labels, num_layers=1, num_heads=1)
 
     def test_none_for_insufficient_data(self) -> None:
-        """< 2 samples per group -> d is None."""
         lookup = {("raw", "full"): {(0, 0): {1: 0.5, 2: 0.5}}}
         labels = {1: "correct", 2: "incorrect"}
         d_matrix = compute_d_matrix(lookup, labels, num_layers=1, num_heads=1)
@@ -126,7 +161,6 @@ class TestComputeDMatrix:
 
 class TestRecurrenceFromDMatrix:
     def test_matches_compute_recurrence(self) -> None:
-        """recurrence_from_d_matrix produces identical results to compute_recurrence."""
         lookup, labels = _build_lookup_and_labels()
         d_matrix = compute_d_matrix(lookup, labels, num_layers=1, num_heads=2)
 
@@ -151,7 +185,6 @@ class TestRecurrenceFromDMatrix:
         assert profile_direct.counts_at_level == profile_matrix.counts_at_level
 
     def test_threshold_sweep_via_d_matrix(self) -> None:
-        """Same d matrix, different thresholds, no recomputation of d."""
         lookup, labels = _build_lookup_and_labels()
         d_matrix = compute_d_matrix(lookup, labels, num_layers=1, num_heads=2)
 
@@ -170,98 +203,10 @@ class TestRecurrenceFromDMatrix:
             num_heads=2,
         )
 
-        # Low threshold catches more
         assert stat_low.recurring_head_count >= stat_high.recurring_head_count
 
-
-class TestSummarizeDMatrix:
-    def test_counts_are_consistent(self) -> None:
-        lookup, labels = _build_lookup_and_labels()
-        d_matrix = compute_d_matrix(lookup, labels, num_layers=1, num_heads=2)
-        summary = summarize_d_matrix(d_matrix)
-
-        assert (
-            summary["n_computable"]
-            == summary["n_positive"] + summary["n_negative"] + summary["n_zero"]
-        )
-        assert summary["n_total"] == summary["n_computable"] + summary["n_none"]
-
-    def test_positive_fraction_correct(self) -> None:
-        lookup, labels = _build_lookup_and_labels()
-        d_matrix = compute_d_matrix(lookup, labels, num_layers=1, num_heads=2)
-        summary = summarize_d_matrix(d_matrix)
-
-        n_pos = summary["n_positive"]
-        n_neg = summary["n_negative"]
-        expected = n_pos / (n_pos + n_neg) if (n_pos + n_neg) > 0 else None
-        assert summary["positive_fraction"] == pytest.approx(expected)
-
-    def test_max_abs_d_correct(self) -> None:
-        lookup, labels = _build_lookup_and_labels()
-        d_matrix = compute_d_matrix(lookup, labels, num_layers=1, num_heads=2)
-        summary = summarize_d_matrix(d_matrix)
-
-        # Collect all d values manually
-        all_d = []
-        for head_d in d_matrix.values():
-            for d_val in head_d.values():
-                if d_val is not None:
-                    all_d.append(abs(d_val))
-
-        assert summary["max_abs_d"] == pytest.approx(max(all_d))
-
-    def test_threshold_sweep_monotonic(self) -> None:
-        """Higher thresholds -> fewer cells exceeding."""
-        lookup, labels = _build_lookup_and_labels()
-        d_matrix = compute_d_matrix(lookup, labels, num_layers=1, num_heads=2)
-        summary = summarize_d_matrix(d_matrix)
-
-        sweep = summary["threshold_sweep"]
-        thresholds = sorted(float(k) for k in sweep)
-        counts = [sweep[str(t)] for t in thresholds]
-        for i in range(1, len(counts)):
-            assert counts[i] <= counts[i - 1], f"Non-monotonic at threshold {thresholds[i]}"
-
-    def test_empty_d_matrix(self) -> None:
-        summary = summarize_d_matrix({})
-        assert summary["n_total"] == 0
-        assert summary["n_computable"] == 0
-        assert summary["max_abs_d"] is None
-        assert summary["positive_fraction"] is None
-
-    def test_all_none_d_values(self) -> None:
-        d_matrix: DMatrix = {("raw", "full"): {(0, 0): None, (0, 1): None}}
-        summary = summarize_d_matrix(d_matrix)
-        assert summary["n_none"] == 2
-        assert summary["n_computable"] == 0
-        assert summary["max_abs_d"] is None
-
-    def test_known_direction(self) -> None:
-        """All positive d -> positive_fraction = 1.0."""
-        d_matrix: DMatrix = {
-            ("raw", "full"): {(0, 0): 1.5, (0, 1): 0.3},
-            ("diff", "full"): {(0, 0): 2.0, (0, 1): 0.1},
-        }
-        summary = summarize_d_matrix(d_matrix)
-        assert summary["n_positive"] == 4
-        assert summary["n_negative"] == 0
-        assert summary["positive_fraction"] == pytest.approx(1.0)
-
-    def test_mixed_direction(self) -> None:
-        """Mixed positive and negative d values."""
-        d_matrix: DMatrix = {
-            ("raw", "full"): {(0, 0): 1.0, (0, 1): -0.5, (0, 2): -0.3},
-        }
-        summary = summarize_d_matrix(d_matrix)
-        assert summary["n_positive"] == 1
-        assert summary["n_negative"] == 2
-        assert summary["positive_fraction"] == pytest.approx(1 / 3)
-
-    def test_recurrence_from_d_matrix_rejects_out_of_grid(self) -> None:
-        """Out-of-grid heads must raise, not silently drop."""
-        d_matrix: DMatrix = {
-            ("raw", "full"): {(5, 0): 1.0},  # layer 5, but grid is 1x1
-        }
+    def test_rejects_out_of_grid(self) -> None:
+        d_matrix: DMatrix = {("raw", "full"): {(5, 0): 1.0}}
         with pytest.raises(ValueError, match="outside the declared grid"):
             recurrence_from_d_matrix(
                 d_matrix,
@@ -270,3 +215,108 @@ class TestSummarizeDMatrix:
                 num_layers=1,
                 num_heads=1,
             )
+
+
+class TestSummarizeDMatrix:
+    def test_returns_d_landscape(self) -> None:
+        lookup, labels = _build_lookup_and_labels()
+        d_matrix = compute_d_matrix(lookup, labels, num_layers=1, num_heads=2)
+        result = summarize_d_matrix(d_matrix, num_layers=1, num_heads=2)
+        assert isinstance(result, DLandscape)
+
+    def test_counts_are_consistent(self) -> None:
+        lookup, labels = _build_lookup_and_labels()
+        d_matrix = compute_d_matrix(lookup, labels, num_layers=1, num_heads=2)
+        s = summarize_d_matrix(d_matrix, num_layers=1, num_heads=2)
+
+        assert s.n_computable == s.n_positive + s.n_negative + s.n_zero
+        assert s.present_cells == s.n_computable + s.n_none
+        assert s.expected_total_cells == s.present_cells + s.absent_cells
+
+    def test_absent_cells_tracked(self) -> None:
+        """Lookup has 2 combos x 2 heads = 4 cells. Full grid for 1 layer x 2 heads
+        with 12 combos = 24 cells. So 20 are absent."""
+        lookup, labels = _build_lookup_and_labels()
+        d_matrix = compute_d_matrix(lookup, labels, num_layers=1, num_heads=2)
+        s = summarize_d_matrix(d_matrix, num_layers=1, num_heads=2)
+
+        assert s.expected_total_cells == 12 * 1 * 2  # 12 combos x 1 layer x 2 heads
+        assert s.present_cells == 4  # 2 combos x 2 heads in our fixture
+        assert s.absent_cells == 24 - 4
+
+    def test_positive_fraction_correct(self) -> None:
+        lookup, labels = _build_lookup_and_labels()
+        d_matrix = compute_d_matrix(lookup, labels, num_layers=1, num_heads=2)
+        s = summarize_d_matrix(d_matrix, num_layers=1, num_heads=2)
+
+        n_signed = s.n_positive + s.n_negative
+        expected = s.n_positive / n_signed if n_signed > 0 else None
+        assert s.positive_fraction == pytest.approx(expected)
+
+    def test_max_abs_d_correct(self) -> None:
+        lookup, labels = _build_lookup_and_labels()
+        d_matrix = compute_d_matrix(lookup, labels, num_layers=1, num_heads=2)
+        s = summarize_d_matrix(d_matrix, num_layers=1, num_heads=2)
+
+        all_d = []
+        for head_d in d_matrix.values():
+            for d_val in head_d.values():
+                if d_val is not None:
+                    all_d.append(abs(d_val))
+
+        assert s.max_abs_d == pytest.approx(max(all_d))
+
+    def test_threshold_sweep_monotonic(self) -> None:
+        lookup, labels = _build_lookup_and_labels()
+        d_matrix = compute_d_matrix(lookup, labels, num_layers=1, num_heads=2)
+        s = summarize_d_matrix(d_matrix, num_layers=1, num_heads=2)
+
+        thresholds = sorted(float(k) for k in s.threshold_sweep)
+        counts = [s.threshold_sweep[str(t)] for t in thresholds]
+        for i in range(1, len(counts)):
+            assert counts[i] <= counts[i - 1], f"Non-monotonic at threshold {thresholds[i]}"
+
+    def test_empty_d_matrix(self) -> None:
+        s = summarize_d_matrix({}, num_layers=1, num_heads=1)
+        assert s.expected_total_cells == 12
+        assert s.present_cells == 0
+        assert s.absent_cells == 12
+        assert s.n_computable == 0
+        assert s.max_abs_d is None
+        assert s.positive_fraction is None
+
+    def test_all_none_d_values(self) -> None:
+        d_matrix: DMatrix = {("raw", "full"): {(0, 0): None, (0, 1): None}}
+        s = summarize_d_matrix(d_matrix, num_layers=1, num_heads=2)
+        assert s.n_none == 2
+        assert s.n_computable == 0
+        assert s.present_cells == 2
+        assert s.max_abs_d is None
+
+    def test_known_direction(self) -> None:
+        d_matrix: DMatrix = {
+            ("raw", "full"): {(0, 0): 1.5, (0, 1): 0.3},
+            ("diff", "full"): {(0, 0): 2.0, (0, 1): 0.1},
+        }
+        s = summarize_d_matrix(d_matrix, num_layers=1, num_heads=2)
+        assert s.n_positive == 4
+        assert s.n_negative == 0
+        assert s.positive_fraction == pytest.approx(1.0)
+
+    def test_mixed_direction(self) -> None:
+        d_matrix: DMatrix = {
+            ("raw", "full"): {(0, 0): 1.0, (0, 1): -0.5, (0, 2): -0.3},
+        }
+        s = summarize_d_matrix(d_matrix, num_layers=1, num_heads=3)
+        assert s.n_positive == 1
+        assert s.n_negative == 2
+        assert s.positive_fraction == pytest.approx(1 / 3)
+
+    def test_to_dict_serializable(self) -> None:
+        """DLandscape.to_dict() produces JSON-serializable output."""
+        import json
+
+        d_matrix: DMatrix = {("raw", "full"): {(0, 0): 0.5}}
+        s = summarize_d_matrix(d_matrix, num_layers=1, num_heads=1)
+        serialized = json.dumps(s.to_dict())
+        assert isinstance(serialized, str)

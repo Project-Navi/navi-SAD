@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from navi_sad.analysis.types import RecurrenceProfile, RecurrenceStatistic
+from navi_sad.analysis.types import DLandscape, RecurrenceProfile, RecurrenceStatistic
 from navi_sad.signal.pe_features import SamplePEFeatures
 from navi_sad.stats.effect_size import POOLED_VAR_EPS
 
@@ -247,39 +247,53 @@ def compute_recurrence(
     )
 
 
-def summarize_d_matrix(d_matrix: DMatrix) -> dict[str, object]:
-    """Compute summary statistics from a d matrix.
+def summarize_d_matrix(
+    d_matrix: DMatrix,
+    *,
+    num_layers: int,
+    num_heads: int,
+) -> DLandscape:
+    """Compute landscape summary from a d matrix against the full theoretical grid.
 
-    Returns landscape characterization: distribution of |d|, directional
-    counts, and a threshold sweep showing how many (head, combo) cells
-    exceed each threshold.
+    The denominator is the full grid (num_combos x num_layers x num_heads),
+    not just the cells present in d_matrix. Absent cells (where PE was
+    ineligible or no data existed) are tracked explicitly.
     """
+    expected_combos = len(EXPECTED_COMBOS)
+    expected_total = expected_combos * num_layers * num_heads
+
     all_d: list[float] = []
     n_none = 0
+    present_cells = 0
 
     for _combo, head_d in d_matrix.items():
         for _head, d_val in head_d.items():
+            present_cells += 1
             if d_val is None:
                 n_none += 1
             else:
                 all_d.append(d_val)
 
+    absent_cells = expected_total - present_cells
+
     if not all_d:
-        return {
-            "n_total": n_none,
-            "n_computable": 0,
-            "n_none": n_none,
-            "n_positive": 0,
-            "n_negative": 0,
-            "n_zero": 0,
-            "positive_fraction": None,
-            "max_abs_d": None,
-            "mean_abs_d": None,
-            "median_abs_d": None,
-            "p95_abs_d": None,
-            "p99_abs_d": None,
-            "threshold_sweep": {},
-        }
+        return DLandscape(
+            expected_total_cells=expected_total,
+            present_cells=present_cells,
+            absent_cells=absent_cells,
+            n_computable=0,
+            n_none=n_none,
+            n_positive=0,
+            n_negative=0,
+            n_zero=0,
+            positive_fraction=None,
+            max_abs_d=None,
+            mean_abs_d=None,
+            median_abs_d=None,
+            p95_abs_d=None,
+            p99_abs_d=None,
+            threshold_sweep={},
+        )
 
     d_arr = np.array(all_d)
     abs_d = np.abs(d_arr)
@@ -290,18 +304,20 @@ def summarize_d_matrix(d_matrix: DMatrix) -> dict[str, object]:
 
     thresholds = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.8, 1.0]
 
-    return {
-        "n_total": len(all_d) + n_none,
-        "n_computable": len(all_d),
-        "n_none": n_none,
-        "n_positive": n_positive,
-        "n_negative": n_negative,
-        "n_zero": n_zero,
-        "positive_fraction": n_positive / n_signed if n_signed > 0 else None,
-        "max_abs_d": float(abs_d.max()),
-        "mean_abs_d": float(abs_d.mean()),
-        "median_abs_d": float(np.median(abs_d)),
-        "p95_abs_d": float(np.percentile(abs_d, 95)),
-        "p99_abs_d": float(np.percentile(abs_d, 99)),
-        "threshold_sweep": {str(t): int(np.sum(abs_d > t)) for t in thresholds},
-    }
+    return DLandscape(
+        expected_total_cells=expected_total,
+        present_cells=present_cells,
+        absent_cells=absent_cells,
+        n_computable=len(all_d),
+        n_none=n_none,
+        n_positive=n_positive,
+        n_negative=n_negative,
+        n_zero=n_zero,
+        positive_fraction=n_positive / n_signed if n_signed > 0 else None,
+        max_abs_d=float(abs_d.max()),
+        mean_abs_d=float(abs_d.mean()),
+        median_abs_d=float(np.median(abs_d)),
+        p95_abs_d=float(np.percentile(abs_d, 95)),
+        p99_abs_d=float(np.percentile(abs_d, 99)),
+        threshold_sweep={str(t): int(np.sum(abs_d > t)) for t in thresholds},
+    )

@@ -76,13 +76,14 @@ def main() -> None:
     d_matrix = compute_d_matrix(
         bundle.lookup, series_data.input.labels, num_layers=NUM_LAYERS, num_heads=NUM_HEADS
     )
-    d_summary = summarize_d_matrix(d_matrix)
+    d_landscape = summarize_d_matrix(d_matrix, num_layers=NUM_LAYERS, num_heads=NUM_HEADS)
     logger.info(
-        "d matrix: max|d|=%.4f, mean|d|=%.4f, positive=%.1f%%, threshold sweep: %s",
-        d_summary.get("max_abs_d", 0) or 0,
-        d_summary.get("mean_abs_d", 0) or 0,
-        (d_summary.get("positive_fraction", 0) or 0) * 100,
-        d_summary.get("threshold_sweep", {}),
+        "d landscape: %d/%d cells present, max|d|=%.4f, mean|d|=%.4f, positive=%.1f%%",
+        d_landscape.present_cells,
+        d_landscape.expected_total_cells,
+        d_landscape.max_abs_d or 0,
+        d_landscape.mean_abs_d or 0,
+        (d_landscape.positive_fraction or 0) * 100,
     )
 
     # Permutation null
@@ -106,7 +107,7 @@ def main() -> None:
         num_heads=NUM_HEADS,
     )
 
-    # Attach eligibility (construct new frozen report)
+    # Attach eligibility and d landscape (construct new frozen report)
     report = RecurrenceNullReport(
         config=report.config,
         eligibility=bundle.eligibility,
@@ -116,6 +117,7 @@ def main() -> None:
         null_at_seven=report.null_at_seven,
         bin_boundaries=report.bin_boundaries,
         bin_counts=report.bin_counts,
+        d_landscape=d_landscape,
     )
 
     # Provenance + output
@@ -124,7 +126,6 @@ def main() -> None:
     json_path = results_dir / "pe_recurrence_null.json"
     report_dict = report.to_dict()
     report_dict["provenance"] = provenance
-    report_dict["d_landscape"] = d_summary
     with open(json_path, "w", encoding="utf-8") as f:
         json.dump(report_dict, f, indent=2)
     logger.info("Wrote %s", json_path)

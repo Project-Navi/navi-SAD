@@ -14,6 +14,7 @@ from navi_sad.analysis.recurrence import (
 )
 from navi_sad.analysis.report import build_provenance, format_markdown
 from navi_sad.analysis.types import (
+    DLandscape,
     EligibilityCell,
     EligibilityTable,
     PermutationNullConfig,
@@ -25,6 +26,7 @@ from navi_sad.analysis.types import (
 
 __all__ = [
     "AnalysisInput",
+    "DLandscape",
     "EligibilityCell",
     "EligibilityTable",
     "PEBundle",

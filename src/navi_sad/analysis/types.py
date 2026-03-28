@@ -149,6 +149,52 @@ class PermutationNullResult:
 
 
 @dataclass(frozen=True)
+class DLandscape:
+    """Full d-value landscape summary. Never discard d values.
+
+    Computed from the d matrix over all (head, combo) cells in the
+    theoretical grid. absent_cells tracks cells where PE was not
+    computable (ineligible or no data), ensuring the denominator
+    is the full grid, not just the present cells.
+    """
+
+    expected_total_cells: int
+    present_cells: int
+    absent_cells: int
+    n_computable: int
+    n_none: int
+    n_positive: int
+    n_negative: int
+    n_zero: int
+    positive_fraction: float | None
+    max_abs_d: float | None
+    mean_abs_d: float | None
+    median_abs_d: float | None
+    p95_abs_d: float | None
+    p99_abs_d: float | None
+    threshold_sweep: dict[str, int]
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "expected_total_cells": self.expected_total_cells,
+            "present_cells": self.present_cells,
+            "absent_cells": self.absent_cells,
+            "n_computable": self.n_computable,
+            "n_none": self.n_none,
+            "n_positive": self.n_positive,
+            "n_negative": self.n_negative,
+            "n_zero": self.n_zero,
+            "positive_fraction": self.positive_fraction,
+            "max_abs_d": self.max_abs_d,
+            "mean_abs_d": self.mean_abs_d,
+            "median_abs_d": self.median_abs_d,
+            "p95_abs_d": self.p95_abs_d,
+            "p99_abs_d": self.p99_abs_d,
+            "threshold_sweep": dict(self.threshold_sweep),
+        }
+
+
+@dataclass(frozen=True)
 class RecurrenceNullReport:
     """Top-level report combining all analysis outputs.
 
@@ -165,6 +211,7 @@ class RecurrenceNullReport:
     null_at_seven: PermutationNullResult
     bin_boundaries: list[int]
     bin_counts: dict[str, dict[str, int]]
+    d_landscape: DLandscape | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -176,4 +223,5 @@ class RecurrenceNullReport:
             "null_at_seven": self.null_at_seven.to_dict(),
             "bin_boundaries": list(self.bin_boundaries),
             "bin_counts": {k: dict(v) for k, v in self.bin_counts.items()},
+            "d_landscape": self.d_landscape.to_dict() if self.d_landscape is not None else None,
         }
