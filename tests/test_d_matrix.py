@@ -247,12 +247,26 @@ class TestSummarizeDMatrix:
         assert summary["n_negative"] == 0
         assert summary["positive_fraction"] == pytest.approx(1.0)
 
-    def test_uses_numpy(self) -> None:
-        """Verify numpy is actually being used (percentiles should be precise)."""
+    def test_mixed_direction(self) -> None:
+        """Mixed positive and negative d values."""
         d_matrix: DMatrix = {
-            ("raw", "full"): {(i, 0): float(i) * 0.01 for i in range(100)},
+            ("raw", "full"): {(0, 0): 1.0, (0, 1): -0.5, (0, 2): -0.3},
         }
         summary = summarize_d_matrix(d_matrix)
-        # numpy percentile on 100 values should be precise
-        assert summary["p95_abs_d"] is not None
-        assert isinstance(summary["p95_abs_d"], float)
+        assert summary["n_positive"] == 1
+        assert summary["n_negative"] == 2
+        assert summary["positive_fraction"] == pytest.approx(1 / 3)
+
+    def test_recurrence_from_d_matrix_rejects_out_of_grid(self) -> None:
+        """Out-of-grid heads must raise, not silently drop."""
+        d_matrix: DMatrix = {
+            ("raw", "full"): {(5, 0): 1.0},  # layer 5, but grid is 1x1
+        }
+        with pytest.raises(ValueError, match="outside the declared grid"):
+            recurrence_from_d_matrix(
+                d_matrix,
+                d_threshold=0.5,
+                min_combos=1,
+                num_layers=1,
+                num_heads=1,
+            )

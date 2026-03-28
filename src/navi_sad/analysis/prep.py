@@ -108,6 +108,9 @@ def compute_pe_bundle(
             idx,
             config=pe_config,
             baseline=series_data.baseline,
+            # "residual" auto-added by compute_sample_pe_features when
+            # baseline is provided (pe_features.py:350-351). This gives
+            # 3 modes x 4 segments = 12 combos per head.
             modes=("raw", "diff"),
             include_segments=True,
         )

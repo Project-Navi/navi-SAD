@@ -15,6 +15,7 @@ import numpy as np
 
 from navi_sad.analysis.types import RecurrenceProfile, RecurrenceStatistic
 from navi_sad.signal.pe_features import SamplePEFeatures
+from navi_sad.stats.effect_size import POOLED_VAR_EPS
 
 # Type alias for the PE lookup table.
 # Outer: (mode, segment) -> inner: (layer, head) -> {dataset_index: pe_value}
@@ -83,14 +84,15 @@ def validate_combo_set(
         )
 
 
-_POOLED_VAR_EPS = 1e-12
-
-
 def _cohens_d_vectorized(
     correct_vals: np.ndarray,
     incorrect_vals: np.ndarray,
 ) -> float | None:
-    """Compute Cohen's d using numpy. Returns None if insufficient data or degenerate."""
+    """Compute Cohen's d using numpy. Returns None if insufficient data or degenerate.
+
+    Uses the same POOLED_VAR_EPS threshold as stats/effect_size.py to ensure
+    the pure-Python and numpy paths agree on what constitutes degenerate variance.
+    """
     n_a = len(correct_vals)
     n_b = len(incorrect_vals)
     if n_a < 2 or n_b < 2:
@@ -100,7 +102,7 @@ def _cohens_d_vectorized(
     var_a = correct_vals.var(ddof=1)
     var_b = incorrect_vals.var(ddof=1)
     pooled_var = ((n_a - 1) * var_a + (n_b - 1) * var_b) / (n_a + n_b - 2)
-    if pooled_var <= _POOLED_VAR_EPS:
+    if pooled_var <= POOLED_VAR_EPS:
         return None
     return float((mean_a - mean_b) / np.sqrt(pooled_var))
 
@@ -191,9 +193,14 @@ def recurrence_from_d_matrix(
 
     for _combo_key, head_d in d_matrix.items():
         for head_key, d_val in head_d.items():
+            if head_key not in combo_counts:
+                raise ValueError(
+                    f"Head {head_key} in d matrix is outside the declared "
+                    f"grid ({num_layers} layers x {num_heads} heads). "
+                    f"Check that num_layers and num_heads match the data."
+                )
             if d_val is not None and abs(d_val) > d_threshold:
-                if head_key in combo_counts:
-                    combo_counts[head_key] += 1
+                combo_counts[head_key] += 1
 
     total_heads = num_layers * num_heads
     recurring = sum(1 for v in combo_counts.values() if v >= min_combos)
