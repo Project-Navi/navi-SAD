@@ -8,12 +8,19 @@ No RNG. No label shuffling. Pure deterministic computation.
 from __future__ import annotations
 
 from navi_sad.analysis.types import RecurrenceProfile, RecurrenceStatistic
-from navi_sad.pilot.helpers import compute_cohens_d
 from navi_sad.signal.pe_features import SamplePEFeatures
+from navi_sad.stats.effect_size import compute_cohens_d
 
 # Type alias for the PE lookup table.
 # Outer: (mode, segment) -> inner: (layer, head) -> {dataset_index: pe_value}
 PELookup = dict[tuple[str, str], dict[tuple[int, int], dict[int, float]]]
+
+# Frozen contract: 3 modes x 4 segments = 12 combos per head.
+EXPECTED_COMBOS: frozenset[tuple[str, str]] = frozenset(
+    (mode, segment)
+    for mode in ("raw", "diff", "residual")
+    for segment in ("full", "early", "mid", "late")
+)
 
 
 def build_pe_lookup(
@@ -38,6 +45,31 @@ def build_pe_lookup(
             lookup[combo][head_key][idx] = h.pe
 
     return lookup
+
+
+def validate_combo_set(
+    lookup: PELookup,
+    *,
+    expected: frozenset[tuple[str, str]] = EXPECTED_COMBOS,
+) -> None:
+    """Validate that the PE lookup contains exactly the expected combos.
+
+    Raises:
+        ValueError: If combos in lookup do not match expected set.
+            Reports missing and unexpected combos.
+    """
+    actual = frozenset(lookup.keys())
+    missing = expected - actual
+    unexpected = actual - expected
+    if missing or unexpected:
+        parts = []
+        if missing:
+            parts.append(f"missing combos: {sorted(missing)}")
+        if unexpected:
+            parts.append(f"unexpected combos: {sorted(unexpected)}")
+        raise ValueError(
+            f"PE lookup combo set does not match expected 12-combo contract. {'; '.join(parts)}"
+        )
 
 
 def compute_combo_cohens_d(

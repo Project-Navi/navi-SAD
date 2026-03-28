@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """PE Recurrence Null Test — thin CLI entry point.
 
-Loads pilot artifacts, computes PE features, calls analysis
-modules, writes structured results. Zero analysis logic here.
+Loads pilot artifacts via the validated loader, computes PE features,
+calls analysis modules, writes structured results with provenance.
+Zero analysis logic here.
 
 Usage:
     python scripts/pe_recurrence_null.py [--results-dir PATH] [--n-permutations N]
@@ -13,13 +14,13 @@ from __future__ import annotations
 import argparse
 import json
 import logging
-import sys
 from pathlib import Path
 from typing import Any
 
 from navi_sad.analysis.eligibility import build_eligibility_table
+from navi_sad.analysis.loader import load_and_validate
 from navi_sad.analysis.permutation import run_permutation_null
-from navi_sad.analysis.recurrence import build_pe_lookup
+from navi_sad.analysis.recurrence import build_pe_lookup, validate_combo_set
 from navi_sad.analysis.types import PermutationNullConfig, RecurrenceNullReport
 from navi_sad.signal.pe_features import (
     PEConfig,
@@ -55,35 +56,11 @@ def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
     results_dir = Path(args.results_dir)
-    samples_path = results_dir / "samples.json"
-    review_path = results_dir / "review.json"
 
-    if not samples_path.exists() or not review_path.exists():
-        sys.exit(f"Missing artifacts in {results_dir}")
-
-    # Load
-    logger.info("Loading artifacts from %s", results_dir)
-    with open(samples_path, encoding="utf-8") as f:
-        samples_artifact: dict[str, Any] = json.load(f)
-    with open(review_path, encoding="utf-8") as f:
-        review_data: list[dict[str, Any]] = json.load(f)
-
-    samples_raw = samples_artifact["samples"]
-    labels_raw = {r["dataset_index"]: r["human_label"] for r in review_data}
-
-    # Filter: correct/incorrect only, no sample errors
-    included = [
-        s
-        for s in samples_raw
-        if labels_raw.get(s["dataset_index"]) in ("correct", "incorrect")
-        and s.get("sample_error") is None
-    ]
-    labels = {s["dataset_index"]: labels_raw[s["dataset_index"]] for s in included}
-    token_counts = {s["dataset_index"]: s["generated_token_count"] for s in included}
-
-    n_correct = sum(1 for v in labels.values() if v == "correct")
-    n_incorrect = sum(1 for v in labels.values() if v == "incorrect")
-    logger.info("Included: %d correct, %d incorrect", n_correct, n_incorrect)
+    # Load and validate artifacts (rejects on integrity violations)
+    logger.info("Loading and validating artifacts from %s", results_dir)
+    data = load_and_validate(results_dir)
+    logger.info("Included: %d correct, %d incorrect", data.n_correct, data.n_incorrect)
 
     # Compute PE features
     logger.info("Computing PE features (3 modes x 4 segments)...")
@@ -91,17 +68,16 @@ def main() -> None:
 
     # Extract head series for baseline
     all_head_series = []
-    for s in included:
-        hs = extract_head_sad_series(s["per_step"], NUM_LAYERS, NUM_HEADS)
+    for idx in sorted(data.per_step_data):
+        hs = extract_head_sad_series(data.per_step_data[idx], NUM_LAYERS, NUM_HEADS)
         all_head_series.append(hs)
 
     baseline = compute_positional_baseline(all_head_series)
 
     pe_samples = {}
-    for s in included:
-        idx = s["dataset_index"]
+    for idx in sorted(data.per_step_data):
         pe = compute_sample_pe_features(
-            s["per_step"],
+            data.per_step_data[idx],
             NUM_LAYERS,
             NUM_HEADS,
             idx,
@@ -114,10 +90,11 @@ def main() -> None:
 
     # Eligibility
     logger.info("Building eligibility table...")
-    eligibility = build_eligibility_table(pe_samples, labels)
+    eligibility = build_eligibility_table(pe_samples, data.labels)
 
-    # PE lookup
+    # PE lookup + 12-combo contract validation
     lookup = build_pe_lookup(pe_samples)
+    validate_combo_set(lookup)
 
     # Null test
     config = PermutationNullConfig(
@@ -133,14 +110,14 @@ def main() -> None:
     )
     report = run_permutation_null(
         lookup,
-        labels,
-        token_counts,
+        data.labels,
+        data.token_counts,
         config=config,
         num_layers=NUM_LAYERS,
         num_heads=NUM_HEADS,
     )
 
-    # Attach eligibility (computed separately)
+    # Attach eligibility (construct new frozen report)
     report = RecurrenceNullReport(
         config=report.config,
         eligibility=eligibility,
@@ -152,16 +129,34 @@ def main() -> None:
         bin_counts=report.bin_counts,
     )
 
+    # Build provenance (frozen contract requirement)
+    provenance: dict[str, Any] = {
+        "samples_path": data.samples_path,
+        "review_path": data.review_path,
+        "pe_config": {
+            "D": pe_config.D,
+            "tau": pe_config.tau,
+            "epsilon": pe_config.epsilon,
+            "min_windows_factor": pe_config.min_windows_factor,
+            "segment_fractions": pe_config.segment_fractions,
+        },
+        "num_layers": NUM_LAYERS,
+        "num_heads": NUM_HEADS,
+        "n_correct": data.n_correct,
+        "n_incorrect": data.n_incorrect,
+    }
+
     # Write JSON (to_dict() already excludes null_counts — only summary stats)
     json_path = results_dir / "pe_recurrence_null.json"
     report_dict = report.to_dict()
+    report_dict["provenance"] = provenance
     with open(json_path, "w", encoding="utf-8") as f:
         json.dump(report_dict, f, indent=2)
     logger.info("Wrote %s", json_path)
 
     # Write markdown
     md_path = results_dir / "pe_recurrence_null.md"
-    md = format_markdown(report)
+    md = format_markdown(report, provenance)
     with open(md_path, "w", encoding="utf-8") as f:
         f.write(md)
     logger.info("Wrote %s", md_path)
@@ -176,8 +171,8 @@ def main() -> None:
     print(f"p-value (>=7 combos): {report.null_at_seven.p_value:.4f}")
 
 
-def format_markdown(report: RecurrenceNullReport) -> str:
-    """Render report as markdown. Eligibility tables first."""
+def format_markdown(report: RecurrenceNullReport, provenance: dict[str, Any]) -> str:
+    """Render report as markdown. Eligibility tables first, provenance last."""
     lines: list[str] = []
     lines.append("# PE Recurrence Null Test Results\n")
 
@@ -223,8 +218,8 @@ def format_markdown(report: RecurrenceNullReport) -> str:
     lines.append("| Min Combos | Heads >= |")
     lines.append("|-----------|----------|")
     for level, count in sorted(report.observed_profile.counts_at_level.items()):
-        marker = " **" if level in (report.config.min_combos, 7) else ""
-        lines.append(f"| >= {level} | {count}{marker}")
+        marker = " <<" if level in (report.config.min_combos, 7) else ""
+        lines.append(f"| >= {level} | {count}{marker} |")
     lines.append("")
 
     # Null test
@@ -265,6 +260,24 @@ def format_markdown(report: RecurrenceNullReport) -> str:
         "- **Transform-family dependence:** Raw, diff, and residual modes "
         "are transforms of the same series. Cross-mode recurrence is "
         "robustness evidence, not independent replication."
+    )
+    lines.append("")
+
+    # Provenance
+    lines.append("## Provenance\n")
+    pe_cfg = provenance.get("pe_config", {})
+    lines.append(f"- **Samples:** `{provenance.get('samples_path', 'unknown')}`")
+    lines.append(f"- **Review:** `{provenance.get('review_path', 'unknown')}`")
+    lines.append(
+        f"- **PE config:** D={pe_cfg.get('D')}, tau={pe_cfg.get('tau')}, "
+        f"min_windows_factor={pe_cfg.get('min_windows_factor')}"
+    )
+    lines.append(
+        f"- **Grid:** {provenance.get('num_layers')} layers x {provenance.get('num_heads')} heads"
+    )
+    lines.append(
+        f"- **Samples:** {provenance.get('n_correct')} correct, "
+        f"{provenance.get('n_incorrect')} incorrect"
     )
     lines.append("")
 

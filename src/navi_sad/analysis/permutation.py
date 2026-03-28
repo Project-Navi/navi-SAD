@@ -106,7 +106,7 @@ def stratified_permute_labels(
 
     shuffled: dict[int, str] = {}
     for bin_id in sorted(bin_indices):
-        indices = bin_indices[bin_id]
+        indices = sorted(bin_indices[bin_id])  # Sort for insertion-order independence
         bin_labels = [labels[idx] for idx in indices]
         rng.shuffle(bin_labels)
         for idx, label in zip(indices, bin_labels, strict=True):
@@ -141,12 +141,13 @@ def compute_null_result(
     variance = sum((x - mean_val) ** 2 for x in null_counts) / n if n > 0 else 0.0
     std_val = math.sqrt(variance)
 
+    # Nearest-rank percentiles (0-based index, no interpolation).
+    # Coarse summary only — not used in p-value computation.
     sorted_counts = sorted(null_counts)
     percentiles: dict[int, int] = {}
     for pct in (5, 25, 50, 75, 95):
-        idx = int(n * pct / 100)
-        idx = min(idx, n - 1)
-        percentiles[pct] = sorted_counts[idx] if n > 0 else 0
+        idx = min(int(n * pct / 100), n - 1)
+        percentiles[pct] = sorted_counts[idx]
 
     return PermutationNullResult(
         observed=observed,
