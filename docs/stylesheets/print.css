@@ -1,0 +1,107 @@
+/* Print-friendly overrides — forces light background, dark text */
+@media print {
+  :root,
+  [data-md-color-scheme="slate"] {
+    --md-default-bg-color: #ffffff !important;
+    --md-default-fg-color: #1a1a1a !important;
+    --md-default-fg-color--light: #444444 !important;
+    --md-default-fg-color--lighter: #666666 !important;
+    --md-code-bg-color: #f5f5f5 !important;
+    --md-typeset-a-color: #1a1a1a !important;
+    --md-footer-bg-color: #ffffff !important;
+    --md-footer-bg-color--dark: #ffffff !important;
+    --md-primary-fg-color: #ffffff !important;
+    --md-primary-bg-color: #1a1a1a !important;
+    --md-accent-fg-color: #1a1a1a !important;
+  }
+
+  body,
+  .md-typeset {
+    color: #1a1a1a !important;
+    background: #ffffff !important;
+  }
+
+  .md-typeset h1,
+  .md-typeset h2,
+  .md-typeset h3,
+  .md-typeset h4 {
+    color: #1a1a1a !important;
+  }
+
+  .md-typeset h2::after {
+    background: #999999 !important;
+  }
+
+  .md-typeset h3 {
+    color: #333333 !important;
+  }
+
+  .md-typeset a {
+    color: #1a1a1a !important;
+    text-decoration: underline !important;
+  }
+
+  .md-typeset code {
+    color: #1a1a1a !important;
+    background: #f0f0f0 !important;
+  }
+
+  .md-typeset pre {
+    background: #f5f5f5 !important;
+    border-color: #cccccc !important;
+  }
+
+  .md-typeset pre code {
+    color: #1a1a1a !important;
+  }
+
+  .md-typeset th {
+    background: #f0f0f0 !important;
+    color: #1a1a1a !important;
+  }
+
+  .md-typeset th,
+  .md-typeset td {
+    border-color: #cccccc !important;
+    color: #1a1a1a !important;
+  }
+
+  .md-typeset li::marker {
+    color: #333333 !important;
+  }
+
+  .md-typeset blockquote {
+    border-left-color: #999999 !important;
+    color: #333333 !important;
+  }
+
+  .md-typeset .admonition,
+  .md-typeset details {
+    border-color: #999999 !important;
+    background: #fafafa !important;
+  }
+
+  /* Hide nav, header, footer, search for print */
+  .md-header,
+  .md-footer,
+  .md-sidebar,
+  .md-tabs,
+  .md-search,
+  .md-top {
+    display: none !important;
+  }
+
+  .md-content {
+    margin: 0 !important;
+    max-width: 100% !important;
+  }
+
+  .md-main__inner {
+    margin: 0 !important;
+  }
+
+  /* Hero glow effect — hide for print */
+  .md-content .hero-glow::before {
+    display: none !important;
+  }
+}
