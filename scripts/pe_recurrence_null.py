@@ -19,7 +19,12 @@ from pathlib import Path
 from navi_sad.analysis.eligibility import build_eligibility_table
 from navi_sad.analysis.loader import load_and_validate
 from navi_sad.analysis.permutation import run_permutation_null
-from navi_sad.analysis.recurrence import build_pe_lookup, validate_combo_set
+from navi_sad.analysis.recurrence import (
+    build_pe_lookup,
+    compute_d_matrix,
+    summarize_d_matrix,
+    validate_combo_set,
+)
 from navi_sad.analysis.report import build_provenance, format_markdown
 from navi_sad.analysis.types import PermutationNullConfig, RecurrenceNullReport
 from navi_sad.signal.pe_features import (
@@ -93,6 +98,18 @@ def main() -> None:
     lookup = build_pe_lookup(pe_samples)
     validate_combo_set(lookup)
 
+    # Compute and persist the full d matrix (never discard d values)
+    logger.info("Computing d matrix...")
+    d_matrix = compute_d_matrix(lookup, data.labels, num_layers=NUM_LAYERS, num_heads=NUM_HEADS)
+    d_summary = summarize_d_matrix(d_matrix)
+    logger.info(
+        "d matrix: max|d|=%.4f, mean|d|=%.4f, positive=%.1f%%, threshold sweep: %s",
+        d_summary.get("max_abs_d", 0) or 0,
+        d_summary.get("mean_abs_d", 0) or 0,
+        (d_summary.get("positive_fraction", 0) or 0) * 100,
+        d_summary.get("threshold_sweep", {}),
+    )
+
     # Null test
     config = PermutationNullConfig(
         n_permutations=args.n_permutations,
@@ -132,6 +149,7 @@ def main() -> None:
     json_path = results_dir / "pe_recurrence_null.json"
     report_dict = report.to_dict()
     report_dict["provenance"] = provenance
+    report_dict["d_landscape"] = d_summary
     with open(json_path, "w", encoding="utf-8") as f:
         json.dump(report_dict, f, indent=2)
     logger.info("Wrote %s", json_path)

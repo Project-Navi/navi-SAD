@@ -5,7 +5,10 @@ from navi_sad.analysis.loader import AnalysisInput, load_and_validate
 from navi_sad.analysis.permutation import run_permutation_null
 from navi_sad.analysis.recurrence import (
     build_pe_lookup,
+    compute_d_matrix,
     compute_recurrence,
+    recurrence_from_d_matrix,
+    summarize_d_matrix,
     validate_combo_set,
 )
 from navi_sad.analysis.report import build_provenance, format_markdown
@@ -31,9 +34,12 @@ __all__ = [
     "build_eligibility_table",
     "build_pe_lookup",
     "build_provenance",
+    "compute_d_matrix",
     "compute_recurrence",
     "format_markdown",
     "load_and_validate",
+    "recurrence_from_d_matrix",
     "run_permutation_null",
+    "summarize_d_matrix",
     "validate_combo_set",
 ]

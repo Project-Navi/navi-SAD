@@ -1,15 +1,20 @@
 """Per-head recurrence statistic from PE features.
 
-Computes how many (mode, segment) combinations each head exceeds
-the Cohen's d threshold. Defines the frozen test statistic.
-No RNG. No label shuffling. Pure deterministic computation.
+Computes the full Cohen's d matrix across all (mode, segment) x (layer, head)
+combinations, then derives recurrence counts, threshold sweeps, and directional
+summaries from it. No RNG. No label shuffling. Pure deterministic computation.
+
+Uses numpy for vectorized computation. The pure-Python compute_cohens_d in
+stats/effect_size.py is kept for single-pair use; this module operates on
+the full grid.
 """
 
 from __future__ import annotations
 
+import numpy as np
+
 from navi_sad.analysis.types import RecurrenceProfile, RecurrenceStatistic
 from navi_sad.signal.pe_features import SamplePEFeatures
-from navi_sad.stats.effect_size import compute_cohens_d
 
 # Type alias for the PE lookup table.
 # Outer: (mode, segment) -> inner: (layer, head) -> {dataset_index: pe_value}
@@ -23,6 +28,10 @@ EXPECTED_COMBOS: frozenset[tuple[str, str]] = frozenset(
     for mode in ("raw", "diff", "residual")
     for segment in ("full", "early", "mid", "late")
 )
+
+# Type alias for the full d-value matrix.
+# (mode, segment) -> (layer, head) -> d_value or None
+DMatrix = dict[tuple[str, str], dict[tuple[int, int], float | None]]
 
 
 def build_pe_lookup(
@@ -74,6 +83,25 @@ def validate_combo_set(
         )
 
 
+def _cohens_d_vectorized(
+    correct_vals: np.ndarray,
+    incorrect_vals: np.ndarray,
+) -> float | None:
+    """Compute Cohen's d using numpy. Returns None if insufficient data."""
+    n_a = len(correct_vals)
+    n_b = len(incorrect_vals)
+    if n_a < 2 or n_b < 2:
+        return None
+    mean_a = correct_vals.mean()
+    mean_b = incorrect_vals.mean()
+    var_a = correct_vals.var(ddof=1)
+    var_b = incorrect_vals.var(ddof=1)
+    pooled_var = ((n_a - 1) * var_a + (n_b - 1) * var_b) / (n_a + n_b - 2)
+    if pooled_var == 0.0:
+        return None
+    return float((mean_a - mean_b) / np.sqrt(pooled_var))
+
+
 def compute_combo_cohens_d(
     head_pe: dict[tuple[int, int], dict[int, float]],
     labels: dict[int, str],
@@ -89,34 +117,28 @@ def compute_combo_cohens_d(
     """
     result: dict[tuple[int, int], float | None] = {}
     for head_key, pe_by_idx in head_pe.items():
-        correct_vals = [v for idx, v in pe_by_idx.items() if labels[idx] == "correct"]
-        incorrect_vals = [v for idx, v in pe_by_idx.items() if labels[idx] == "incorrect"]
-        d_val, _ = compute_cohens_d(correct_vals, incorrect_vals)
-        result[head_key] = d_val
+        correct_vals = np.array([v for idx, v in pe_by_idx.items() if labels[idx] == "correct"])
+        incorrect_vals = np.array([v for idx, v in pe_by_idx.items() if labels[idx] == "incorrect"])
+        result[head_key] = _cohens_d_vectorized(correct_vals, incorrect_vals)
     return result
 
 
-def compute_recurrence(
+def compute_d_matrix(
     lookup: PELookup,
     labels: dict[int, str],
     *,
-    d_threshold: float,
-    min_combos: int,
     num_layers: int,
     num_heads: int,
-) -> tuple[RecurrenceStatistic, RecurrenceProfile]:
-    """Compute recurrence statistic across all combos.
+) -> DMatrix:
+    """Compute the full Cohen's d matrix across all combos and heads.
 
-    For each (layer, head), counts how many (mode, segment) combos
-    have |Cohen's d| strictly greater than d_threshold.
-
-    Returns:
-        (RecurrenceStatistic, RecurrenceProfile) tuple.
+    Returns the raw d values for every (combo, head) pair. This is
+    the foundation for recurrence, threshold sweeps, and directional
+    analysis. Nothing is discarded.
 
     Raises:
-        ValueError: If num_layers or num_heads is non-positive, if labels
-            contain non-canonical values, or if the PE lookup contains
-            heads outside the declared grid.
+        ValueError: If labels contain non-canonical values or heads
+            fall outside the declared grid.
     """
     stray = set(labels.values()) - CANONICAL_LABELS
     if stray:
@@ -129,29 +151,50 @@ def compute_recurrence(
             f"num_layers and num_heads must be >= 1, "
             f"got num_layers={num_layers}, num_heads={num_heads}"
         )
-    # Initialize all heads to 0
-    combo_counts: dict[tuple[int, int], int] = {}
-    for layer in range(num_layers):
-        for head in range(num_heads):
-            combo_counts[(layer, head)] = 0
 
-    # For each combo, compute d values and tally
-    for _combo_key, head_pe in lookup.items():
+    grid = frozenset((layer, head) for layer in range(num_layers) for head in range(num_heads))
+    d_matrix: DMatrix = {}
+
+    for combo_key, head_pe in lookup.items():
         d_values = compute_combo_cohens_d(head_pe, labels)
-        for head_key, d_val in d_values.items():
-            if head_key not in combo_counts:
+        for head_key in d_values:
+            if head_key not in grid:
                 raise ValueError(
                     f"Head {head_key} in PE lookup is outside the declared "
                     f"grid ({num_layers} layers x {num_heads} heads). "
                     f"Check that num_layers and num_heads match the data."
                 )
+        d_matrix[combo_key] = d_values
+
+    return d_matrix
+
+
+def recurrence_from_d_matrix(
+    d_matrix: DMatrix,
+    *,
+    d_threshold: float,
+    min_combos: int,
+    num_layers: int,
+    num_heads: int,
+) -> tuple[RecurrenceStatistic, RecurrenceProfile]:
+    """Compute recurrence statistic from a pre-computed d matrix.
+
+    For each (layer, head), counts how many combos have |d| strictly
+    greater than d_threshold. This is a pure reduction over the d matrix.
+    """
+    combo_counts: dict[tuple[int, int], int] = {
+        (layer, head): 0 for layer in range(num_layers) for head in range(num_heads)
+    }
+
+    for _combo_key, head_d in d_matrix.items():
+        for head_key, d_val in head_d.items():
             if d_val is not None and abs(d_val) > d_threshold:
-                combo_counts[head_key] += 1
+                if head_key in combo_counts:
+                    combo_counts[head_key] += 1
 
     total_heads = num_layers * num_heads
     recurring = sum(1 for v in combo_counts.values() if v >= min_combos)
 
-    # Build profile: at each level, how many heads have >= that count
     max_possible = max(combo_counts.values()) if combo_counts else 0
     counts_at_level: dict[int, int] = {}
     for level in range(1, max(max_possible, 12) + 1):
@@ -167,3 +210,88 @@ def compute_recurrence(
         ),
         RecurrenceProfile(counts_at_level=counts_at_level),
     )
+
+
+def compute_recurrence(
+    lookup: PELookup,
+    labels: dict[int, str],
+    *,
+    d_threshold: float,
+    min_combos: int,
+    num_layers: int,
+    num_heads: int,
+) -> tuple[RecurrenceStatistic, RecurrenceProfile]:
+    """Compute recurrence statistic across all combos.
+
+    Convenience wrapper: computes d matrix then reduces to recurrence.
+    If you need the d values for downstream analysis (threshold sweeps,
+    directional analysis), call compute_d_matrix() directly.
+    """
+    d_matrix = compute_d_matrix(lookup, labels, num_layers=num_layers, num_heads=num_heads)
+    return recurrence_from_d_matrix(
+        d_matrix,
+        d_threshold=d_threshold,
+        min_combos=min_combos,
+        num_layers=num_layers,
+        num_heads=num_heads,
+    )
+
+
+def summarize_d_matrix(d_matrix: DMatrix) -> dict[str, object]:
+    """Compute summary statistics from a d matrix.
+
+    Returns landscape characterization: distribution of |d|, directional
+    counts, and a threshold sweep showing how many (head, combo) cells
+    exceed each threshold.
+    """
+    all_d: list[float] = []
+    n_none = 0
+
+    for _combo, head_d in d_matrix.items():
+        for _head, d_val in head_d.items():
+            if d_val is None:
+                n_none += 1
+            else:
+                all_d.append(d_val)
+
+    if not all_d:
+        return {
+            "n_total": n_none,
+            "n_computable": 0,
+            "n_none": n_none,
+            "n_positive": 0,
+            "n_negative": 0,
+            "n_zero": 0,
+            "positive_fraction": None,
+            "max_abs_d": None,
+            "mean_abs_d": None,
+            "median_abs_d": None,
+            "p95_abs_d": None,
+            "p99_abs_d": None,
+            "threshold_sweep": {},
+        }
+
+    d_arr = np.array(all_d)
+    abs_d = np.abs(d_arr)
+    n_positive = int(np.sum(d_arr > 0))
+    n_negative = int(np.sum(d_arr < 0))
+    n_zero = int(np.sum(d_arr == 0))
+    n_signed = n_positive + n_negative
+
+    thresholds = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.8, 1.0]
+
+    return {
+        "n_total": len(all_d) + n_none,
+        "n_computable": len(all_d),
+        "n_none": n_none,
+        "n_positive": n_positive,
+        "n_negative": n_negative,
+        "n_zero": n_zero,
+        "positive_fraction": n_positive / n_signed if n_signed > 0 else None,
+        "max_abs_d": float(abs_d.max()),
+        "mean_abs_d": float(abs_d.mean()),
+        "median_abs_d": float(np.median(abs_d)),
+        "p95_abs_d": float(np.percentile(abs_d, 95)),
+        "p99_abs_d": float(np.percentile(abs_d, 99)),
+        "threshold_sweep": {str(t): int(np.sum(abs_d > t)) for t in thresholds},
+    }
