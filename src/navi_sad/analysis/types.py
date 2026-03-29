@@ -10,6 +10,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+# Canonical analysis labels. Does NOT include "ambiguous" — that is
+# excluded before analysis begins. pilot/schema.py has the broader set.
+CANONICAL_LABELS: frozenset[str] = frozenset({"correct", "incorrect"})
+
 
 @dataclass(frozen=True)
 class EligibilityCell:
@@ -145,6 +149,33 @@ class PermutationNullResult:
             "null_max": self.null_max,
             "null_percentiles": {str(k): v for k, v in self.null_percentiles.items()},
             "n_permutations": len(self.null_counts),
+        }
+
+
+@dataclass(frozen=True)
+class NullDistributionSummary:
+    """Descriptive summary of a permutation null distribution.
+
+    Population std (ddof=0) is intentional — this is a Monte Carlo
+    descriptive, not a statistical estimate. Percentiles use
+    nearest-rank (no interpolation).
+    """
+
+    mean: float
+    std: float  # population, ddof=0
+    min_val: float
+    max_val: float
+    percentiles: dict[int, float]  # keys: 5, 25, 50, 75, 95
+    n: int
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "mean": self.mean,
+            "std": self.std,
+            "min": self.min_val,
+            "max": self.max_val,
+            "percentiles": {str(k): v for k, v in sorted(self.percentiles.items())},
+            "n": self.n,
         }
 
 
@@ -316,7 +347,7 @@ class AsymmetryNullResult:
     observed: AsymmetryStatistic
     p_value_two_sided: float  # PRIMARY
     p_value_one_sided_negative: float  # secondary/descriptive
-    null_signed_excess_summary: dict[str, float]  # mean, std, min, max, percentiles
+    null_signed_excess_summary: NullDistributionSummary
     n_permutations: int
 
     def to_dict(self) -> dict[str, Any]:
@@ -324,7 +355,7 @@ class AsymmetryNullResult:
             "observed": self.observed.to_dict(),
             "p_value_two_sided": self.p_value_two_sided,
             "p_value_one_sided_negative": self.p_value_one_sided_negative,
-            "null_signed_excess_summary": dict(self.null_signed_excess_summary),
+            "null_signed_excess_summary": self.null_signed_excess_summary.to_dict(),
             "n_permutations": self.n_permutations,
         }
 

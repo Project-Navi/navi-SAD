@@ -14,6 +14,7 @@ from __future__ import annotations
 import numpy as np
 
 from navi_sad.analysis.types import (
+    CANONICAL_LABELS,
     AsymmetryStatistic,
     DLandscape,
     RecurrenceProfile,
@@ -25,8 +26,6 @@ from navi_sad.stats.effect_size import POOLED_VAR_EPS
 # Type alias for the PE lookup table.
 # Outer: (mode, segment) -> inner: (layer, head) -> {dataset_index: pe_value}
 PELookup = dict[tuple[str, str], dict[tuple[int, int], dict[int, float]]]
-
-CANONICAL_LABELS = frozenset({"correct", "incorrect"})
 
 # Frozen contract: 3 modes x 4 segments = 12 combos per head.
 EXPECTED_COMBOS: frozenset[tuple[str, str]] = frozenset(

@@ -19,6 +19,7 @@ from navi_sad.analysis.types import (
     EligibilityCell,
     EligibilityTable,
     MatchingDiagnostics,
+    NullDistributionSummary,
     PermutationNullConfig,
     PermutationNullResult,
     RecurrenceNullReport,
@@ -251,17 +252,14 @@ def _make_asymmetry_null(
         observed=stat,
         p_value_two_sided=0.003,
         p_value_one_sided_negative=0.002,
-        null_signed_excess_summary={
-            "mean": 0.5,
-            "std": 50.0,
-            "min": -200.0,
-            "max": 180.0,
-            "p5": -100.0,
-            "p25": -30.0,
-            "p50": 0.0,
-            "p75": 30.0,
-            "p95": 100.0,
-        },
+        null_signed_excess_summary=NullDistributionSummary(
+            mean=0.5,
+            std=50.0,
+            min_val=-200.0,
+            max_val=180.0,
+            percentiles={5: -100.0, 25: -30.0, 50: 0.0, 75: 30.0, 95: 100.0},
+            n=10000,
+        ),
         n_permutations=10000,
     )
 

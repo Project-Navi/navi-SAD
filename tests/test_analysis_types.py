@@ -7,8 +7,10 @@ import json
 import pytest
 
 from navi_sad.analysis.types import (
+    CANONICAL_LABELS,
     EligibilityCell,
     EligibilityTable,
+    NullDistributionSummary,
     PermutationNullConfig,
     PermutationNullResult,
     RecurrenceNullReport,
@@ -217,3 +219,55 @@ class TestRecurrenceNullReport:
         )
         d = report.to_dict()
         assert d["eligibility"] is None
+
+
+class TestNullDistributionSummary:
+    def test_construction(self) -> None:
+        s = NullDistributionSummary(
+            mean=4.5,
+            std=2.87,
+            min_val=0.0,
+            max_val=9.0,
+            percentiles={5: 0.0, 25: 2.0, 50: 5.0, 75: 7.0, 95: 9.0},
+            n=10,
+        )
+        assert s.mean == 4.5
+        assert s.n == 10
+
+    def test_frozen(self) -> None:
+        s = NullDistributionSummary(
+            mean=4.5,
+            std=2.87,
+            min_val=0.0,
+            max_val=9.0,
+            percentiles={50: 5.0},
+            n=10,
+        )
+        with pytest.raises(AttributeError):
+            s.mean = 99.0  # type: ignore[misc]
+
+    def test_to_dict_round_trip(self) -> None:
+        s = NullDistributionSummary(
+            mean=4.5,
+            std=2.87,
+            min_val=0.0,
+            max_val=9.0,
+            percentiles={5: 0.0, 25: 2.0, 50: 5.0, 75: 7.0, 95: 9.0},
+            n=10,
+        )
+        d = s.to_dict()
+        serialized = json.dumps(d)
+        assert isinstance(serialized, str)
+        assert d["mean"] == 4.5
+        assert d["min"] == 0.0
+        assert d["max"] == 9.0
+        assert d["n"] == 10
+        assert "50" in d["percentiles"]
+
+
+class TestCanonicalLabels:
+    def test_contents(self) -> None:
+        assert CANONICAL_LABELS == frozenset({"correct", "incorrect"})
+
+    def test_no_ambiguous(self) -> None:
+        assert "ambiguous" not in CANONICAL_LABELS
