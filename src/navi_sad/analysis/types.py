@@ -351,11 +351,23 @@ class AsymmetryNullResult:
     n_permutations: int
 
     def to_dict(self) -> dict[str, Any]:
+        # Preserve legacy flat serialization for JSON artifacts.
+        # The old _null_summary() returned {mean, std, min, max, p5, p25, ...}.
+        # NullDistributionSummary stores these typed; flatten on output.
+        s = self.null_signed_excess_summary
+        flat_summary: dict[str, float] = {
+            "mean": s.mean,
+            "std": s.std,
+            "min": s.min_val,
+            "max": s.max_val,
+        }
+        for pct, val in sorted(s.percentiles.items()):
+            flat_summary[f"p{pct}"] = val
         return {
             "observed": self.observed.to_dict(),
             "p_value_two_sided": self.p_value_two_sided,
             "p_value_one_sided_negative": self.p_value_one_sided_negative,
-            "null_signed_excess_summary": self.null_signed_excess_summary.to_dict(),
+            "null_signed_excess_summary": flat_summary,
             "n_permutations": self.n_permutations,
         }
 

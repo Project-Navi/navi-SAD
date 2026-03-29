@@ -582,3 +582,48 @@ class TestGoldenValueRegression:
         assert s.std == pytest.approx(0.9707728879609279, rel=1e-12)
         assert s.min_val == -1.0
         assert s.max_val == 1.0
+        assert s.percentiles == {5: -1.0, 25: -1.0, 50: 1.0, 75: 1.0, 95: 1.0}
+        assert s.n == 50
+
+    def test_asymmetry_null_to_dict_legacy_flat_shape(self) -> None:
+        """AsymmetryNullResult.to_dict() must preserve legacy flat JSON shape.
+
+        The old _null_summary() produced {mean, std, min, max, p5, p25, ...}.
+        The refactored code must emit the same keys for artifact compatibility.
+        """
+        rng = random.Random(42)
+        labels = {i: "correct" if i <= 5 else "incorrect" for i in range(1, 11)}
+        token_counts = dict.fromkeys(range(1, 11), 100)
+        lookup: PELookup = {}
+        for mode in ("raw", "diff", "residual"):
+            for segment in ("full", "early", "mid", "late"):
+                lookup[(mode, segment)] = {
+                    (0, 0): {i: 0.5 + rng.gauss(0, 0.01) for i in range(1, 11)}
+                }
+
+        result = run_asymmetry_null(
+            lookup=lookup,
+            labels=labels,
+            token_counts=token_counts,
+            num_layers=1,
+            num_heads=1,
+            n_permutations=50,
+            n_bins=1,
+            seed=42,
+        )
+        d = result.to_dict()
+        summary = d["null_signed_excess_summary"]
+        # Must have legacy flat keys, not nested "percentiles" object
+        assert "mean" in summary
+        assert "std" in summary
+        assert "min" in summary
+        assert "max" in summary
+        assert "p5" in summary
+        assert "p25" in summary
+        assert "p50" in summary
+        assert "p75" in summary
+        assert "p95" in summary
+        # Must NOT have the nested NullDistributionSummary shape
+        assert "percentiles" not in summary
+        assert "min_val" not in summary
+        assert "max_val" not in summary
