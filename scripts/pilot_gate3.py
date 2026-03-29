@@ -80,17 +80,17 @@ def run_generation(args: argparse.Namespace) -> None:
     # ---------------------------------------------------------------
     # Dataset
     # ---------------------------------------------------------------
-    log.info("Loading TruthfulQA dataset (revision=%s)...", DATASET_REVISION[:12])
+    log.info("dataset_loading", revision=DATASET_REVISION[:12])
     dataset = ds.load_dataset(
         "truthful_qa", "generation", split="validation", revision=DATASET_REVISION
     )
     rng = random.Random(SEED)
     selected_indices = sorted(rng.sample(range(len(dataset)), args.sample_count))
     log.info(
-        "Selected %d samples (seed=%d): %s",
-        len(selected_indices),
-        SEED,
-        selected_indices,
+        "samples_selected",
+        n_samples=len(selected_indices),
+        seed=SEED,
+        indices=selected_indices,
     )
 
     # ---------------------------------------------------------------
@@ -102,7 +102,7 @@ def run_generation(args: argparse.Namespace) -> None:
     torch.manual_seed(0)
     torch.cuda.manual_seed_all(0)
 
-    log.info("Loading model %s (revision=%s)...", MODEL_ID, REVISION[:12])
+    log.info("model_loading", model_id=MODEL_ID, revision=REVISION[:12])
     tokenizer = AutoTokenizer.from_pretrained(MODEL_ID, revision=REVISION)
     if tokenizer.pad_token_id is None:
         tokenizer.pad_token_id = tokenizer.eos_token_id
@@ -260,7 +260,7 @@ def run_generation(args: argparse.Namespace) -> None:
             except ValueError as e:
                 full_gen_matrix = None
                 sample_error = f"full_gen_mean_delta: {e}"
-                log.error("Sample %d: %s", dataset_idx, sample_error)
+                log.error("sample_error", dataset_idx=dataset_idx, error=sample_error)
 
             leading_span_matrix = None
             if sample_error is not None:
@@ -273,7 +273,7 @@ def run_generation(args: argparse.Namespace) -> None:
                     )
                 except ValueError as e:
                     sample_error = f"leading_span_mean_delta: {e}"
-                    log.error("Sample %d: %s", dataset_idx, sample_error)
+                    log.error("sample_error", dataset_idx=dataset_idx, error=sample_error)
 
             if sample_error is not None:
                 invalid_samples.append(dataset_idx)
@@ -364,35 +364,33 @@ def run_generation(args: argparse.Namespace) -> None:
 
             elapsed = time.monotonic() - t0
             log.info(
-                "[%d/%d] idx=%d tokens=%d stop=%s scorer=%s%s (%.1fs) %s",
-                i + 1,
-                len(selected_indices),
-                dataset_idx,
-                generated_token_count,
-                stop_reason,
-                scorer_label,
-                " INVALID" if sample_error else "",
-                elapsed,
-                row["question"][:60],
+                "sample_complete",
+                progress=f"{i + 1}/{len(selected_indices)}",
+                dataset_idx=dataset_idx,
+                tokens=generated_token_count,
+                stop_reason=stop_reason,
+                scorer_label=scorer_label,
+                valid=sample_error is None,
+                elapsed_s=round(elapsed, 1),
+                question=row["question"][:60],
             )
 
     # ---------------------------------------------------------------
     # Final summary
     # ---------------------------------------------------------------
-    log.info("Wrote %s (%d samples)", samples_path, len(samples))
-    log.info("Wrote %s (%d samples)", review_path, len(reviews))
-    log.info("Wrote %s", raw_path)
+    log.info("artifact_written", path=str(samples_path), n_samples=len(samples))
+    log.info("artifact_written", path=str(review_path), n_samples=len(reviews))
+    log.info("artifact_written", path=str(raw_path))
 
     if invalid_samples:
         log.error(
-            "FAIL: %d invalid sample(s) due to instrument errors: %s",
-            len(invalid_samples),
-            invalid_samples,
+            "generation_failed",
+            n_invalid=len(invalid_samples),
+            invalid_indices=invalid_samples,
         )
-        log.error("Review sample_error fields before proceeding.")
         sys.exit(1)
 
-    log.info("Generation complete. Proceed to manual review protocol.")
+    log.info("generation_complete")
 
 
 # -------------------------------------------------------------------

@@ -59,16 +59,16 @@ def main() -> None:
     results_dir = Path(args.results_dir)
 
     # Prepare (load, validate, extract series, compute baseline)
-    log.info("Preparing series data from %s", results_dir)
+    log.info("series_prep_started", results_dir=str(results_dir))
     series_data = prepare_series_data(results_dir, num_layers=NUM_LAYERS, num_heads=NUM_HEADS)
     log.info(
-        "Included: %d correct, %d incorrect",
-        series_data.input.n_correct,
-        series_data.input.n_incorrect,
+        "series_prep_complete",
+        n_correct=series_data.input.n_correct,
+        n_incorrect=series_data.input.n_incorrect,
     )
 
     # Compute PE features at D=3
-    log.info("Computing PE bundle (D=3)...")
+    log.info("pe_bundle_started", D=3)
     pe_config = PEConfig()
     bundle = compute_pe_bundle(series_data, pe_config)
 
@@ -76,18 +76,18 @@ def main() -> None:
     validate_combo_set(bundle.lookup)
 
     # Compute d matrix (never discard d values)
-    log.info("Computing d matrix...")
+    log.info("d_matrix_started")
     d_matrix = compute_d_matrix(
         bundle.lookup, series_data.input.labels, num_layers=NUM_LAYERS, num_heads=NUM_HEADS
     )
     d_landscape = summarize_d_matrix(d_matrix, num_layers=NUM_LAYERS, num_heads=NUM_HEADS)
     log.info(
-        "d landscape: %d/%d cells present, max|d|=%.4f, mean|d|=%.4f, positive=%.1f%%",
-        d_landscape.present_cells,
-        d_landscape.expected_total_cells,
-        d_landscape.max_abs_d or 0,
-        d_landscape.mean_abs_d or 0,
-        (d_landscape.positive_fraction or 0) * 100,
+        "d_landscape_summary",
+        present_cells=d_landscape.present_cells,
+        expected_cells=d_landscape.expected_total_cells,
+        max_abs_d=d_landscape.max_abs_d or 0,
+        mean_abs_d=d_landscape.mean_abs_d or 0,
+        positive_fraction=d_landscape.positive_fraction,
     )
 
     # Permutation null
@@ -97,10 +97,10 @@ def main() -> None:
         n_bins=args.n_bins,
     )
     log.info(
-        "Running permutation null: %d permutations, %d bins, seed=%d...",
-        config.n_permutations,
-        config.n_bins,
-        config.seed,
+        "permutation_null_config",
+        n_permutations=config.n_permutations,
+        n_bins=config.n_bins,
+        seed=config.seed,
     )
     report = run_permutation_null(
         bundle.lookup,
@@ -132,12 +132,12 @@ def main() -> None:
     report_dict["provenance"] = provenance
     with open(json_path, "w", encoding="utf-8") as f:
         json.dump(report_dict, f, indent=2)
-    log.info("Wrote %s", json_path)
+    log.info("artifact_written", path=str(json_path), format="json")
 
     md_path = results_dir / "pe_recurrence_null.md"
     with open(md_path, "w", encoding="utf-8") as f:
         f.write(format_markdown(report, provenance))
-    log.info("Wrote %s", md_path)
+    log.info("artifact_written", path=str(md_path), format="markdown")
 
     # Summary to stdout
     print(

@@ -23,6 +23,8 @@ import logging.config
 
 import structlog
 
+_configured = False
+
 
 def configure_logging(
     *,
@@ -35,9 +37,14 @@ def configure_logging(
         json: If True, emit JSON lines. If False, colored console output.
         level: Minimum log level (DEBUG, INFO, WARNING, ERROR).
 
-    Must be called exactly once, before any log calls. Calling twice
-    is safe but the second call is ignored (cache_logger_on_first_use).
+    Must be called exactly once, before any log calls. Subsequent
+    calls are no-ops (one-shot guard).
     """
+    global _configured
+    if _configured:
+        return
+    _configured = True
+
     log_level = getattr(logging, level.upper(), logging.INFO)
 
     # Shared processors for both structlog and stdlib paths.
