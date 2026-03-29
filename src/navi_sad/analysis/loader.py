@@ -12,7 +12,11 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
+import structlog
+
 from navi_sad.core.types import StepRecord
+
+log = structlog.get_logger()
 
 
 @dataclass(frozen=True)
@@ -129,6 +133,14 @@ def load_and_validate(
 
     samples_raw: list[dict[str, Any]] = samples_artifact["samples"]
 
+    log.info(
+        "artifacts_loaded",
+        samples_path=str(samples_path),
+        review_path=str(review_path),
+        n_samples=len(samples_raw),
+        n_reviews=len(review_data),
+    )
+
     # Validate review/samples integrity before any filtering.
     # This catches duplicates, missing indices, label drift, and
     # readonly field mismatches. Raises ValueError on failure.
@@ -164,6 +176,14 @@ def load_and_validate(
 
     n_correct = sum(1 for v in labels.values() if v == "correct")
     n_incorrect = sum(1 for v in labels.values() if v == "incorrect")
+
+    log.info(
+        "samples_filtered",
+        n_included=len(included),
+        n_correct=n_correct,
+        n_incorrect=n_incorrect,
+        n_total=len(samples_raw),
+    )
 
     return AnalysisInput(
         labels=labels,
@@ -252,6 +272,13 @@ def load_reviewer_votes(labeling_dir: Path) -> dict[int, list[str]]:
         if missing:
             raise ValueError(f"dataset_index={idx} missing votes from reviewers: {missing}")
         result[idx] = [v for v in slot if v is not None]
+
+    log.info(
+        "reviewer_votes_loaded",
+        labeling_dir=str(labeling_dir),
+        n_samples=len(result),
+        n_reviewers=n_reviewers,
+    )
 
     return result
 
