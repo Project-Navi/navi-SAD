@@ -78,15 +78,13 @@ The tiers follow the [Neel Nanda pattern](https://www.neelnanda.io/mechanistic-i
 
 ### 5. Permutation null test
 
-**Status:** Open. *Planned.*
+**Status:** Recurrence count null: complete (not significant). Asymmetry null: machinery built (PR #31), not yet run on data.
 
-**Problem:** The pilot found 338/1024 heads with |d|>0.5 and a 4.6:1 directional asymmetry. These numbers are meaningless without a null distribution. The permutation test shuffles correct/incorrect labels while preserving class sizes, recomputes per-head statistics, and determines whether the observed pattern is distinguishable from chance.
+**Recurrence count result:** The analysis module (`src/navi_sad/analysis/`) was built in PRs #28-29. The stratified permutation null was run on both 40-sample (p=0.25) and 400-sample (zero recurring heads) data. The recurrence count at |d|>0.5 does not survive the null. The 40-sample pilot's 342-head count was small-n inflation at n=9 incorrect.
 
-**Why it matters:** With 1024 heads times multiple modes and segments, multiple-comparison inflation is a real concern. The permutation null directly answers: "could this signal arise from random label assignment?" If the observed recurrence count and asymmetry ratio fall within the null distribution, the pilot signal is an artifact. If they fall outside, the signal is robust to relabeling.
+**400-sample d-landscape:** With 282 correct and 68 incorrect samples, the d-matrix shows a dense-small-effect regime (max |d|=0.58, mean |d|=0.134) with 83.4% negative direction (incorrect PE > correct PE). This reverses the pilot's 4.6:1 positive asymmetry. The directional pattern is an observed candidate, not a validated result.
 
-**What you need:** Pilot artifacts, the analysis module (to be built under `src/navi_sad/analysis/`), and a clear specification of the test statistic. The experimental design is specified in the repository (see the internal plans directory). The implementation requires eligibility accounting --- heads that are ineligible for PE at a given D must be excluded from the null as well as the observed statistic.
-
-**What success looks like:** A permutation p-value for the recurrence count (338/1024) and the asymmetry ratio (4.6:1). Either "p < 0.05, the signal survives relabeling" or "p > 0.05, the signal is consistent with multiple-comparison noise." Both outcomes are useful.
+**Confound controls (PR #31, built, not yet run):** Head-level signed asymmetry null (two-sided primary, one-sided negative secondary), length-matched analysis with pair-restricted null, and unanimous-only label robustness check. The asymmetry statistic operates at the head level (1024 heads, per-head mean d across 12 combos) to avoid cell-level pseudoreplication. Baseline deviation diagnostic reports subset-vs-full baseline drift. Execute via `scripts/pe_confound_controls.py`.
 
 ---
 

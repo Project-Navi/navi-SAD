@@ -90,9 +90,9 @@ See the [Roadmap](roadmap.md) for the full path from here to natural language be
 
 These findings are characterization, not evidence. Specifically:
 
-- **338/1024 heads is not a claim about 338 specific heads.** The pilot is too small (n=9 incorrect) for stable per-head ranking. Different random subsets of 9 samples would produce different head lists. The count characterizes the scale of the signal, not the identity of the heads.
+- **338/1024 heads was small-n inflation.** The permutation null on the 40-sample data returned p=0.25 (not significant; null range [172, 768]). The 400-sample replication (282 correct, 68 incorrect) found **zero** recurring heads at |d|>0.5. The recurrence count statistic is dead on TruthfulQA.
 
-- **4.6:1 asymmetry is not a proven directional effect.** It is a characterization of the pilot data. The permutation null test --- which would determine whether this ratio is distinguishable from chance --- has not been run. *Planned.*
+- **4.6:1 positive asymmetry reversed at 400 samples.** The 400-sample d-landscape shows 83.4% *negative* d (incorrect PE > correct PE). The pilot's positive direction was a small-n artifact. Confound control machinery (asymmetry null, length-matched, unanimous-only) built in PR #31; not yet executed on this data.
 
 - **Cohen's d values are exploratory, not evidential.** Every d value in the pilot was computed post-hoc on underpowered groups. Do not use them to set frozen thresholds, rank heads, or make publishable claims.
 
