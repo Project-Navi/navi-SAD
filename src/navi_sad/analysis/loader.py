@@ -176,6 +176,86 @@ def load_and_validate(
     )
 
 
+_VALID_REVIEWER_LABELS = frozenset({"correct", "incorrect", "ambiguous"})
+
+
+def load_reviewer_votes(labeling_dir: Path) -> dict[int, list[str]]:
+    """Load per-reviewer vote data from labeling batch files.
+
+    Reads batch_*_reviewer_*.json files. Each file is a list of dicts
+    with 'dataset_index' and 'human_label'.
+
+    Returns:
+        {dataset_index: [reviewer_0_label, reviewer_1_label, ...]}.
+        Reviewers are ordered by reviewer number from the filename.
+
+    Raises:
+        FileNotFoundError: If labeling_dir does not exist.
+        ValueError: If no batch files found, reviewer counts are
+            inconsistent, or labels contain invalid values.
+    """
+    if not labeling_dir.exists():
+        raise FileNotFoundError(f"Labeling directory not found: {labeling_dir}")
+
+    # Discover batch files
+    import re
+
+    pattern = re.compile(r"batch_(\d+)_reviewer_(\d+)\.json$")
+    file_map: dict[tuple[int, int], Path] = {}
+    for p in sorted(labeling_dir.iterdir()):
+        m = pattern.match(p.name)
+        if m:
+            batch_idx = int(m.group(1))
+            reviewer_idx = int(m.group(2))
+            file_map[(batch_idx, reviewer_idx)] = p
+
+    if not file_map:
+        raise ValueError(f"No batch_*_reviewer_*.json files found in {labeling_dir}")
+
+    # Determine reviewer set per batch
+    batches: dict[int, set[int]] = {}
+    for batch_idx, reviewer_idx in file_map:
+        batches.setdefault(batch_idx, set()).add(reviewer_idx)
+
+    reviewer_counts = {b: len(revs) for b, revs in batches.items()}
+    unique_counts = set(reviewer_counts.values())
+    if len(unique_counts) > 1:
+        raise ValueError(
+            f"Reviewer count varies across batches: {reviewer_counts}. "
+            f"Expected consistent reviewer count."
+        )
+
+    n_reviewers = unique_counts.pop()
+
+    # Load all votes
+    votes: dict[int, list[str | None]] = {}  # idx -> [None]*n_reviewers initially
+    for (_batch_idx, reviewer_idx), path in sorted(file_map.items()):
+        with open(path, encoding="utf-8") as f:
+            records: list[dict[str, Any]] = json.load(f)
+        for rec in records:
+            idx = rec["dataset_index"]
+            label = rec["human_label"]
+            if label not in _VALID_REVIEWER_LABELS:
+                raise ValueError(
+                    f"Invalid label {label!r} for dataset_index={idx} "
+                    f"in {path.name}. Valid labels: {sorted(_VALID_REVIEWER_LABELS)}"
+                )
+            if idx not in votes:
+                votes[idx] = [None] * n_reviewers  # type: ignore[list-item]
+            votes[idx][reviewer_idx] = label
+
+    # Validate: no missing reviewer slots
+    result: dict[int, list[str]] = {}
+    for idx in sorted(votes):
+        slot = votes[idx]
+        missing = [i for i, v in enumerate(slot) if v is None]
+        if missing:
+            raise ValueError(f"dataset_index={idx} missing votes from reviewers: {missing}")
+        result[idx] = [v for v in slot if v is not None]
+
+    return result
+
+
 def step_records_to_dicts(records: list[StepRecord]) -> list[dict[str, Any]]:
     """Convert typed StepRecords back to dicts for PE API calls.
 

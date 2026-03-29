@@ -13,7 +13,7 @@ from typing import Any
 from navi_sad.analysis.eligibility import build_eligibility_table
 from navi_sad.analysis.loader import AnalysisInput, load_and_validate, step_records_to_dicts
 from navi_sad.analysis.recurrence import PELookup, build_pe_lookup
-from navi_sad.analysis.types import EligibilityTable
+from navi_sad.analysis.types import BaselineDeviation, EligibilityTable
 from navi_sad.signal.pe_features import (
     PEConfig,
     SamplePEFeatures,
@@ -84,6 +84,125 @@ def prepare_series_data(
         per_step_dicts=per_step_dicts,
         num_layers=num_layers,
         num_heads=num_heads,
+    )
+
+
+def prepare_series_data_from_subset(
+    data: AnalysisInput,
+    indices: set[int],
+    baseline: dict[tuple[int, int], list[float]],
+    num_layers: int,
+    num_heads: int,
+) -> SeriesData:
+    """Build SeriesData from an already-loaded subset, using a provided baseline.
+
+    Filters the AnalysisInput to the given indices. Does NOT recompute
+    the positional baseline — uses the full-cohort baseline passed in.
+    Skips disk I/O entirely.
+
+    Args:
+        data: Already-loaded and validated AnalysisInput.
+        indices: Which dataset indices to include.
+        baseline: Pre-computed positional baseline (full-cohort).
+        num_layers: Number of model layers.
+        num_heads: Number of attention heads per layer.
+
+    Raises:
+        ValueError: If indices is empty or contains indices not in data.
+    """
+    if not indices:
+        raise ValueError("Empty indices set — no samples to prepare")
+
+    available = set(data.per_step_data.keys())
+    missing = indices - available
+    if missing:
+        raise ValueError(
+            f"Indices {sorted(missing)} not in loaded data. Available: {sorted(available)}"
+        )
+
+    # Filter labels, token_counts, per_step_data
+    filtered_labels = {idx: data.labels[idx] for idx in indices}
+    filtered_token_counts = {idx: data.token_counts[idx] for idx in indices}
+    filtered_per_step = {idx: data.per_step_data[idx] for idx in indices}
+
+    n_correct = sum(1 for v in filtered_labels.values() if v == "correct")
+    n_incorrect = sum(1 for v in filtered_labels.values() if v == "incorrect")
+
+    subset_input = AnalysisInput(
+        labels=filtered_labels,
+        token_counts=filtered_token_counts,
+        per_step_data=filtered_per_step,
+        n_correct=n_correct,
+        n_incorrect=n_incorrect,
+        samples_path=data.samples_path,
+        review_path=data.review_path,
+    )
+
+    # Convert StepRecords to dicts for the PE API
+    per_step_dicts = {
+        idx: step_records_to_dicts(records) for idx, records in filtered_per_step.items()
+    }
+
+    # Extract head series (for the subset, but baseline is NOT recomputed)
+    head_series: dict[int, dict[tuple[int, int], list[float]]] = {}
+    for idx in sorted(per_step_dicts):
+        hs = extract_head_sad_series(per_step_dicts[idx], num_layers, num_heads)
+        head_series[idx] = hs
+
+    return SeriesData(
+        input=subset_input,
+        head_series=head_series,
+        baseline=baseline,
+        per_step_dicts=per_step_dicts,
+        num_layers=num_layers,
+        num_heads=num_heads,
+    )
+
+
+def compute_baseline_deviation(
+    subset_head_series: dict[int, dict[tuple[int, int], list[float]]],
+    full_baseline: dict[tuple[int, int], list[float]],
+) -> BaselineDeviation:
+    """Compute how much a subset's positional baseline deviates from full cohort.
+
+    Recomputes what the baseline would be for the subset alone, then
+    measures the max and mean absolute deviation from the full-cohort
+    baseline across all (layer, head, position) combinations.
+
+    This is the diagnostic promised by the spec: if baselines differ
+    substantially, the shared-baseline assumption may not be benign.
+    """
+    if not subset_head_series:
+        return BaselineDeviation(
+            max_abs_deviation=0.0,
+            mean_abs_deviation=0.0,
+            n_positions_compared=0,
+        )
+
+    # Recompute subset baseline
+    subset_baseline = compute_positional_baseline(list(subset_head_series.values()))
+
+    # Compare against full baseline
+    all_deviations: list[float] = []
+    for head_key, full_series in full_baseline.items():
+        subset_series = subset_baseline.get(head_key)
+        if subset_series is None:
+            continue
+        min_len = min(len(full_series), len(subset_series))
+        for pos in range(min_len):
+            all_deviations.append(abs(full_series[pos] - subset_series[pos]))
+
+    if not all_deviations:
+        return BaselineDeviation(
+            max_abs_deviation=0.0,
+            mean_abs_deviation=0.0,
+            n_positions_compared=0,
+        )
+
+    return BaselineDeviation(
+        max_abs_deviation=max(all_deviations),
+        mean_abs_deviation=sum(all_deviations) / len(all_deviations),
+        n_positions_compared=len(all_deviations),
     )
 
 

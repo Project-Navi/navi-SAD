@@ -9,7 +9,13 @@ from __future__ import annotations
 from typing import Any
 
 from navi_sad.analysis.loader import AnalysisInput
-from navi_sad.analysis.types import RecurrenceNullReport
+from navi_sad.analysis.types import (
+    AsymmetryNullResult,
+    BaselineDeviation,
+    MatchingDiagnostics,
+    RecurrenceNullReport,
+    SelectionDiagnostics,
+)
 from navi_sad.signal.pe_features import PEConfig
 
 
@@ -180,6 +186,180 @@ def format_markdown(
     )
     lines.append(
         f"- **Samples:** {provenance.get('n_correct')} correct, "
+        f"{provenance.get('n_incorrect')} incorrect"
+    )
+    lines.append("")
+
+    return "\n".join(lines)
+
+
+# -- Confound controls report (PR #30) --
+
+
+def _format_asymmetry_section(
+    title: str,
+    result: AsymmetryNullResult,
+) -> list[str]:
+    """Format one asymmetry analysis section."""
+    lines: list[str] = []
+    obs = result.observed
+    lines.append(f"### {title}\n")
+    lines.append(
+        f"- **Voting heads:** {obs.n_negative_heads + obs.n_positive_heads + obs.n_zero_heads}"
+    )
+    lines.append(
+        f"- **Negative:** {obs.n_negative_heads}, **Positive:** {obs.n_positive_heads}, **Zero:** {obs.n_zero_heads}"
+    )
+    lines.append(
+        f"- **Absent:** {obs.n_absent_heads}, **Sparse (<{obs.min_present_combos} combos):** {obs.n_sparse_heads}"
+    )
+    lines.append(f"- **Signed excess (n_neg - n_pos):** {obs.signed_excess}")
+    if obs.negative_fraction is not None:
+        lines.append(f"- **Negative fraction:** {obs.negative_fraction:.3f}")
+    if obs.mean_head_mean_d is not None:
+        lines.append(f"- **Mean head mean-d:** {obs.mean_head_mean_d:.4f}")
+        lines.append(f"- **Mean head |mean-d|:** {obs.mean_head_abs_mean_d:.4f}")
+    lines.append(f"- **p-value (two-sided, PRIMARY):** {result.p_value_two_sided:.4f}")
+    lines.append(
+        f"- **p-value (one-sided negative, secondary):** {result.p_value_one_sided_negative:.4f}"
+    )
+    lines.append(f"- **N permutations:** {result.n_permutations}")
+    summary = result.null_signed_excess_summary
+    lines.append(
+        f"- **Null signed excess:** mean={summary.get('mean', 0):.1f}, "
+        f"std={summary.get('std', 0):.1f}, "
+        f"range=[{summary.get('min', 0):.0f}, {summary.get('max', 0):.0f}]"
+    )
+    lines.append("")
+    return lines
+
+
+def _format_baseline_deviation(dev: BaselineDeviation) -> list[str]:
+    """Format baseline deviation diagnostic."""
+    return [
+        f"- **Baseline deviation from full cohort:** "
+        f"max={dev.max_abs_deviation:.6f}, mean={dev.mean_abs_deviation:.6f} "
+        f"({dev.n_positions_compared} positions compared)",
+    ]
+
+
+def format_confound_controls_markdown(
+    full_cohort: AsymmetryNullResult,
+    matched_result: AsymmetryNullResult | None,
+    matched_diag: MatchingDiagnostics | None,
+    matched_sensitivity: AsymmetryNullResult | None,
+    unanimous_result: AsymmetryNullResult | None,
+    unanimous_diag: SelectionDiagnostics | None,
+    provenance: dict[str, Any],
+    matched_baseline_dev: BaselineDeviation | None = None,
+    unanimous_baseline_dev: BaselineDeviation | None = None,
+) -> str:
+    """Render confound controls report as markdown.
+
+    Markdown order per spec:
+    1. Full-cohort asymmetry result
+    2. Length-matched diagnostics, then result
+    3. Unanimous-only diagnostics, then result
+    4. Caveats
+    """
+    lines: list[str] = []
+    lines.append("# PE Confound Controls Report\n")
+
+    # 1. Full-cohort
+    lines.append("## Analysis 1: Full-Cohort Signed Asymmetry\n")
+    lines.extend(_format_asymmetry_section("Full Cohort", full_cohort))
+
+    # 2. Length-matched
+    lines.append("## Analysis 2: Length-Matched\n")
+    if matched_diag is not None:
+        lines.append("### Matching Diagnostics\n")
+        lines.append(
+            f"- **Before:** {matched_diag.n_correct_before} correct, {matched_diag.n_incorrect_before} incorrect"
+        )
+        lines.append(
+            f"- **After:** {matched_diag.n_correct_after} correct, {matched_diag.n_incorrect_after} incorrect"
+        )
+        lines.append(
+            f"- **Dropped:** {matched_diag.n_correct_dropped} correct, {matched_diag.n_incorrect_dropped} incorrect"
+        )
+        lines.append(
+            f"- **Mean tokens (before):** correct={matched_diag.mean_tokens_correct_before:.1f}, incorrect={matched_diag.mean_tokens_incorrect_before:.1f}"
+        )
+        lines.append(
+            f"- **Mean tokens (after):** correct={matched_diag.mean_tokens_correct_after:.1f}, incorrect={matched_diag.mean_tokens_incorrect_after:.1f}"
+        )
+        lines.append(
+            f"- **Pair gaps:** max={matched_diag.max_pair_token_gap}, mean={matched_diag.mean_pair_token_gap:.1f}"
+        )
+        lines.append(f"- **Dropped correct tokens:** {matched_diag.dropped_correct_token_summary}")
+        if matched_baseline_dev is not None:
+            lines.extend(_format_baseline_deviation(matched_baseline_dev))
+        lines.append("")
+    if matched_result is not None:
+        lines.extend(
+            _format_asymmetry_section(
+                "Length-Matched (pair-restricted null, PRIMARY)", matched_result
+            )
+        )
+    if matched_sensitivity is not None:
+        lines.extend(
+            _format_asymmetry_section(
+                "Length-Matched (stratified null, sensitivity)", matched_sensitivity
+            )
+        )
+
+    # 3. Unanimous-only
+    lines.append("## Analysis 3: Unanimous-Only\n")
+    if unanimous_diag is not None:
+        lines.append("### Selection Diagnostics\n")
+        lines.append(
+            f"- **Before:** {unanimous_diag.n_correct_before} correct, {unanimous_diag.n_incorrect_before} incorrect"
+        )
+        lines.append(
+            f"- **After:** {unanimous_diag.n_correct_after} correct, {unanimous_diag.n_incorrect_after} incorrect"
+        )
+        lines.append(f"- **Excluded ambiguous:** {unanimous_diag.n_excluded_ambiguous}")
+        lines.append(f"- **Excluded non-unanimous:** {unanimous_diag.n_excluded_non_unanimous}")
+        if unanimous_baseline_dev is not None:
+            lines.extend(_format_baseline_deviation(unanimous_baseline_dev))
+        lines.append("")
+    if unanimous_result is not None:
+        lines.extend(_format_asymmetry_section("Unanimous Only", unanimous_result))
+
+    # 4. Caveats
+    lines.append("## Caveats\n")
+    lines.append(
+        "- **GQA non-independence:** Mistral uses 8 KV groups with 32 Q heads. "
+        "The 1024 head-level tests are not independent."
+    )
+    lines.append(
+        "- **Exploratory:** All three analyses are on the same 400-sample data. "
+        "No multiple-testing correction applied."
+    )
+    lines.append(
+        "- **Data-discovered direction:** The negative direction was observed "
+        "on the same data being tested. Two-sided p-value is primary."
+    )
+    lines.append(
+        "- **Transform-family dependence:** Raw, diff, and residual modes "
+        "are transforms of the same series."
+    )
+    lines.append("")
+
+    # Provenance
+    lines.append("## Provenance\n")
+    lines.append(f"- **Samples:** `{provenance.get('samples_path', 'unknown')}`")
+    lines.append(f"- **Review:** `{provenance.get('review_path', 'unknown')}`")
+    pe_cfg = provenance.get("pe_config", {})
+    lines.append(
+        f"- **PE config:** D={pe_cfg.get('D')}, tau={pe_cfg.get('tau')}, "
+        f"min_windows_factor={pe_cfg.get('min_windows_factor')}"
+    )
+    lines.append(
+        f"- **Grid:** {provenance.get('num_layers')} layers x {provenance.get('num_heads')} heads"
+    )
+    lines.append(
+        f"- **Full-cohort samples:** {provenance.get('n_correct')} correct, "
         f"{provenance.get('n_incorrect')} incorrect"
     )
     lines.append("")

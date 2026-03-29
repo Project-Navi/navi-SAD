@@ -7,16 +7,24 @@ required headings, table formatting.
 from __future__ import annotations
 
 from navi_sad.analysis.loader import AnalysisInput
-from navi_sad.analysis.report import build_provenance, format_markdown
+from navi_sad.analysis.report import (
+    build_provenance,
+    format_confound_controls_markdown,
+    format_markdown,
+)
 from navi_sad.analysis.types import (
+    AsymmetryNullResult,
+    AsymmetryStatistic,
     DLandscape,
     EligibilityCell,
     EligibilityTable,
+    MatchingDiagnostics,
     PermutationNullConfig,
     PermutationNullResult,
     RecurrenceNullReport,
     RecurrenceProfile,
     RecurrenceStatistic,
+    SelectionDiagnostics,
 )
 from navi_sad.signal.pe_features import PEConfig
 
@@ -213,3 +221,142 @@ class TestFormatMarkdown:
         for line in md.split("\n"):
             if line.startswith("|") and not line.startswith("|--"):
                 assert line.rstrip().endswith("|"), f"Missing trailing pipe: {line}"
+
+
+def _make_asymmetry_stat(
+    n_neg: int = 800,
+    n_pos: int = 200,
+) -> AsymmetryStatistic:
+    return AsymmetryStatistic(
+        n_negative_heads=n_neg,
+        n_positive_heads=n_pos,
+        n_zero_heads=24,
+        n_absent_heads=0,
+        n_sparse_heads=0,
+        signed_excess=n_neg - n_pos,
+        negative_fraction=n_neg / (n_neg + n_pos) if (n_neg + n_pos) else None,
+        mean_head_mean_d=-0.15,
+        mean_head_abs_mean_d=0.15,
+        min_present_combos=6,
+        sign_eps=1e-10,
+    )
+
+
+def _make_asymmetry_null(
+    stat: AsymmetryStatistic | None = None,
+) -> AsymmetryNullResult:
+    if stat is None:
+        stat = _make_asymmetry_stat()
+    return AsymmetryNullResult(
+        observed=stat,
+        p_value_two_sided=0.003,
+        p_value_one_sided_negative=0.002,
+        null_signed_excess_summary={
+            "mean": 0.5,
+            "std": 50.0,
+            "min": -200.0,
+            "max": 180.0,
+            "p5": -100.0,
+            "p25": -30.0,
+            "p50": 0.0,
+            "p75": 30.0,
+            "p95": 100.0,
+        },
+        n_permutations=10000,
+    )
+
+
+class TestFormatConfoundControlsMarkdown:
+    def test_all_three_analyses_present(self) -> None:
+        """All three analysis sections appear in order."""
+        md = format_confound_controls_markdown(
+            full_cohort=_make_asymmetry_null(),
+            matched_result=_make_asymmetry_null(),
+            matched_diag=MatchingDiagnostics(
+                n_correct_before=282,
+                n_incorrect_before=68,
+                n_correct_after=68,
+                n_incorrect_after=68,
+                n_correct_dropped=214,
+                n_incorrect_dropped=0,
+                mean_tokens_correct_before=120.0,
+                mean_tokens_incorrect_before=110.0,
+                mean_tokens_correct_after=112.0,
+                mean_tokens_incorrect_after=110.0,
+                max_pair_token_gap=15,
+                mean_pair_token_gap=3.2,
+                dropped_correct_token_summary="50-200, mean=125.0",
+            ),
+            matched_sensitivity=_make_asymmetry_null(),
+            unanimous_result=_make_asymmetry_null(),
+            unanimous_diag=SelectionDiagnostics(
+                selection_name="unanimous_only",
+                n_correct_before=282,
+                n_incorrect_before=68,
+                n_correct_after=270,
+                n_incorrect_after=59,
+                n_excluded_ambiguous=50,
+                n_excluded_non_unanimous=21,
+            ),
+            provenance={"pe_config": {"D": 3, "tau": 1, "min_windows_factor": 2}},
+        )
+        # Check section ordering
+        full_pos = md.index("Full-Cohort")
+        matched_pos = md.index("Length-Matched")
+        unan_pos = md.index("Unanimous-Only")
+        caveat_pos = md.index("Caveats")
+        assert full_pos < matched_pos < unan_pos < caveat_pos
+
+    def test_caveats_present(self) -> None:
+        md = format_confound_controls_markdown(
+            full_cohort=_make_asymmetry_null(),
+            matched_result=None,
+            matched_diag=None,
+            matched_sensitivity=None,
+            unanimous_result=None,
+            unanimous_diag=None,
+            provenance={"pe_config": {}},
+        )
+        assert "GQA non-independence" in md
+        assert "Data-discovered direction" in md
+        assert "Exploratory" in md
+
+    def test_p_values_present(self) -> None:
+        md = format_confound_controls_markdown(
+            full_cohort=_make_asymmetry_null(),
+            matched_result=None,
+            matched_diag=None,
+            matched_sensitivity=None,
+            unanimous_result=None,
+            unanimous_diag=None,
+            provenance={"pe_config": {}},
+        )
+        assert "two-sided, PRIMARY" in md
+        assert "one-sided negative, secondary" in md
+
+    def test_matching_diagnostics_present(self) -> None:
+        md = format_confound_controls_markdown(
+            full_cohort=_make_asymmetry_null(),
+            matched_result=_make_asymmetry_null(),
+            matched_diag=MatchingDiagnostics(
+                n_correct_before=282,
+                n_incorrect_before=68,
+                n_correct_after=68,
+                n_incorrect_after=68,
+                n_correct_dropped=214,
+                n_incorrect_dropped=0,
+                mean_tokens_correct_before=120.0,
+                mean_tokens_incorrect_before=110.0,
+                mean_tokens_correct_after=112.0,
+                mean_tokens_incorrect_after=110.0,
+                max_pair_token_gap=15,
+                mean_pair_token_gap=3.2,
+                dropped_correct_token_summary="50-200, mean=125.0",
+            ),
+            matched_sensitivity=None,
+            unanimous_result=None,
+            unanimous_diag=None,
+            provenance={"pe_config": {}},
+        )
+        assert "Matching Diagnostics" in md
+        assert "Pair gaps" in md

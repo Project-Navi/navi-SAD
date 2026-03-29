@@ -10,8 +10,14 @@ import math
 import random
 from collections import defaultdict
 
-from navi_sad.analysis.recurrence import PELookup, compute_recurrence
+from navi_sad.analysis.recurrence import (
+    PELookup,
+    compute_d_matrix,
+    compute_head_asymmetry,
+    compute_recurrence,
+)
 from navi_sad.analysis.types import (
+    AsymmetryNullResult,
     PermutationNullConfig,
     PermutationNullResult,
     RecurrenceNullReport,
@@ -115,25 +121,44 @@ def stratified_permute_labels(
     return shuffled
 
 
+_VALID_TAILS = frozenset({"right", "left", "two-sided"})
+
+
 def compute_null_result(
     observed: int,
     null_counts: list[int],
+    tail: str = "right",
 ) -> PermutationNullResult:
     """Compute null summary statistics from permutation distribution.
 
-    p-value uses Phipson-Smyth correction: (k + 1) / (N + 1)
-    where k = count of null values >= observed.
+    p-value uses Phipson-Smyth correction: (k + 1) / (N + 1).
+
+    Args:
+        observed: Observed test statistic.
+        null_counts: Null distribution values.
+        tail: Which tail to test.
+            "right": k = count(null >= observed). Default.
+            "left": k = count(null <= observed).
+            "two-sided": k = count(|null| >= |observed|).
 
     Raises:
-        ValueError: If null_counts is empty (no permutations were run).
+        ValueError: If null_counts is empty or tail is invalid.
     """
+    if tail not in _VALID_TAILS:
+        raise ValueError(f"tail must be one of {sorted(_VALID_TAILS)}, got {tail!r}")
     if not null_counts:
         raise ValueError(
             "null_counts is empty — no permutations were run. "
             "Cannot compute a p-value from zero permutations."
         )
     n = len(null_counts)
-    k = sum(1 for nc in null_counts if nc >= observed)
+    if tail == "right":
+        k = sum(1 for nc in null_counts if nc >= observed)
+    elif tail == "left":
+        k = sum(1 for nc in null_counts if nc <= observed)
+    else:  # two-sided
+        abs_obs = abs(observed)
+        k = sum(1 for nc in null_counts if abs(nc) >= abs_obs)
     p_value = (k + 1) / (n + 1)
 
     mean_val = sum(null_counts) / n if n > 0 else 0.0
@@ -245,4 +270,198 @@ def run_permutation_null(
         null_at_seven=compute_null_result(observed_at_seven, null_at_seven),
         bin_boundaries=bin_boundaries,
         bin_counts={k: dict(v) for k, v in bin_counts.items()},
+    )
+
+
+# -- Asymmetry null (PR #30) --
+
+
+def _null_summary(null_values: list[int]) -> dict[str, float]:
+    """Compute summary statistics of the null distribution."""
+    n = len(null_values)
+    mean = sum(null_values) / n
+    variance = sum((x - mean) ** 2 for x in null_values) / n
+    std = math.sqrt(variance)
+    sorted_vals = sorted(null_values)
+    percentiles: dict[str, float] = {}
+    for pct in (5, 25, 50, 75, 95):
+        idx = min(int(n * pct / 100), n - 1)
+        percentiles[f"p{pct}"] = float(sorted_vals[idx])
+    return {
+        "mean": mean,
+        "std": std,
+        "min": float(min(null_values)),
+        "max": float(max(null_values)),
+        **percentiles,
+    }
+
+
+def run_asymmetry_null(
+    lookup: PELookup,
+    labels: dict[int, str],
+    token_counts: dict[int, int],
+    *,
+    num_layers: int,
+    num_heads: int,
+    n_permutations: int = 10_000,
+    n_bins: int = 2,
+    seed: int = 42,
+    min_present_combos: int = 6,
+    sign_eps: float = 1e-10,
+) -> AsymmetryNullResult:
+    """Stratified permutation null for the head-level asymmetry statistic.
+
+    Each permutation: shuffle labels within length bins, recompute
+    d matrix, compute head asymmetry, record signed_excess.
+
+    Returns AsymmetryNullResult with two-sided (primary) and
+    one-sided (secondary/descriptive) p-values.
+    """
+    # Observed
+    observed_d_matrix = compute_d_matrix(lookup, labels, num_layers=num_layers, num_heads=num_heads)
+    observed_stat = compute_head_asymmetry(
+        observed_d_matrix,
+        num_layers=num_layers,
+        num_heads=num_heads,
+        min_present_combos=min_present_combos,
+        sign_eps=sign_eps,
+    )
+
+    # Stratification
+    bins, _boundaries = assign_length_bins(token_counts, labels, n_bins=n_bins)
+
+    # Permutation loop
+    rng = random.Random(seed)
+    null_signed_excesses: list[int] = []
+
+    for _ in range(n_permutations):
+        shuffled = stratified_permute_labels(labels, bins, rng)
+        perm_d_matrix = compute_d_matrix(
+            lookup, shuffled, num_layers=num_layers, num_heads=num_heads
+        )
+        perm_stat = compute_head_asymmetry(
+            perm_d_matrix,
+            num_layers=num_layers,
+            num_heads=num_heads,
+            min_present_combos=min_present_combos,
+            sign_eps=sign_eps,
+        )
+        null_signed_excesses.append(perm_stat.signed_excess)
+
+    # Two-sided: |null| >= |observed|
+    obs_se = observed_stat.signed_excess
+    abs_obs = abs(obs_se)
+    k_two = sum(1 for nc in null_signed_excesses if abs(nc) >= abs_obs)
+    p_two_sided = (k_two + 1) / (n_permutations + 1)
+
+    # One-sided negative: tests whether negative direction is more
+    # extreme than expected. signed_excess = n_neg - n_pos, so large
+    # positive = more negative heads. Right-tail: null >= observed.
+    k_neg = sum(1 for nc in null_signed_excesses if nc >= obs_se)
+    p_one_sided_negative = (k_neg + 1) / (n_permutations + 1)
+
+    return AsymmetryNullResult(
+        observed=observed_stat,
+        p_value_two_sided=p_two_sided,
+        p_value_one_sided_negative=p_one_sided_negative,
+        null_signed_excess_summary=_null_summary(null_signed_excesses),
+        n_permutations=n_permutations,
+    )
+
+
+def _paired_permute_labels(
+    labels: dict[int, str],
+    pairs: list[tuple[int, int]],
+    rng: random.Random,
+) -> dict[int, str]:
+    """Within-pair label swap: each pair independently swaps or keeps.
+
+    pairs: list of (correct_idx, incorrect_idx) tuples.
+    For each pair, with probability 0.5, swap the labels.
+    """
+    shuffled = dict(labels)
+    for idx_a, idx_b in pairs:
+        if rng.random() < 0.5:
+            shuffled[idx_a], shuffled[idx_b] = shuffled[idx_b], shuffled[idx_a]
+    return shuffled
+
+
+def run_paired_asymmetry_null(
+    lookup: PELookup,
+    labels: dict[int, str],
+    pairs: list[tuple[int, int]],
+    *,
+    num_layers: int,
+    num_heads: int,
+    n_permutations: int = 10_000,
+    seed: int = 42,
+    min_present_combos: int = 6,
+    sign_eps: float = 1e-10,
+) -> AsymmetryNullResult:
+    """Pair-restricted permutation null for matched designs.
+
+    Each pair is a block. Under the null, labels are swapped or
+    kept independently per pair (coin flip). This preserves the
+    matching structure exactly.
+
+    Args:
+        lookup: Precomputed PE lookup table.
+        labels: Label assignments (includes only paired samples).
+        pairs: List of (correct_idx, incorrect_idx) tuples.
+        num_layers: Number of model layers.
+        num_heads: Number of attention heads per layer.
+        n_permutations: Number of permutations.
+        seed: RNG seed for reproducibility.
+        min_present_combos: Minimum combos for a head to vote.
+        sign_eps: Deadzone for zero classification.
+
+    Raises:
+        ValueError: If pairs is empty.
+    """
+    if not pairs:
+        raise ValueError("pairs must be non-empty")
+
+    # Observed
+    observed_d_matrix = compute_d_matrix(lookup, labels, num_layers=num_layers, num_heads=num_heads)
+    observed_stat = compute_head_asymmetry(
+        observed_d_matrix,
+        num_layers=num_layers,
+        num_heads=num_heads,
+        min_present_combos=min_present_combos,
+        sign_eps=sign_eps,
+    )
+
+    # Permutation loop
+    rng = random.Random(seed)
+    null_signed_excesses: list[int] = []
+
+    for _ in range(n_permutations):
+        shuffled = _paired_permute_labels(labels, pairs, rng)
+        perm_d_matrix = compute_d_matrix(
+            lookup, shuffled, num_layers=num_layers, num_heads=num_heads
+        )
+        perm_stat = compute_head_asymmetry(
+            perm_d_matrix,
+            num_layers=num_layers,
+            num_heads=num_heads,
+            min_present_combos=min_present_combos,
+            sign_eps=sign_eps,
+        )
+        null_signed_excesses.append(perm_stat.signed_excess)
+
+    # P-values (same logic as run_asymmetry_null)
+    obs_se = observed_stat.signed_excess
+    abs_obs = abs(obs_se)
+    k_two = sum(1 for nc in null_signed_excesses if abs(nc) >= abs_obs)
+    p_two_sided = (k_two + 1) / (n_permutations + 1)
+
+    k_neg = sum(1 for nc in null_signed_excesses if nc >= obs_se)
+    p_one_sided_negative = (k_neg + 1) / (n_permutations + 1)
+
+    return AsymmetryNullResult(
+        observed=observed_stat,
+        p_value_two_sided=p_two_sided,
+        p_value_one_sided_negative=p_one_sided_negative,
+        null_signed_excess_summary=_null_summary(null_signed_excesses),
+        n_permutations=n_permutations,
     )

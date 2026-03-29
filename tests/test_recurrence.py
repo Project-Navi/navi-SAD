@@ -11,6 +11,7 @@ import pytest
 from navi_sad.analysis.recurrence import (
     build_pe_lookup,
     compute_combo_cohens_d,
+    compute_head_asymmetry,
     compute_recurrence,
 )
 from navi_sad.signal.pe_features import HeadPEResult, PEConfig, SamplePEFeatures
@@ -268,3 +269,143 @@ class TestComputeRecurrence:
                 num_layers=0,
                 num_heads=1,
             )
+
+
+def _make_d_matrix_for_asymmetry(
+    head_mean_ds: dict[tuple[int, int], list[float | None]],
+) -> dict[tuple[str, str], dict[tuple[int, int], float | None]]:
+    """Build a d matrix where each head has known d values across combos.
+
+    head_mean_ds maps (layer, head) -> list of d values (one per combo).
+    Combos are assigned from EXPECTED_COMBOS in sorted order.
+    """
+    from navi_sad.analysis.recurrence import EXPECTED_COMBOS
+
+    combos = sorted(EXPECTED_COMBOS)
+    d_matrix: dict[tuple[str, str], dict[tuple[int, int], float | None]] = {}
+    for combo in combos:
+        d_matrix[combo] = {}
+    for head_key, d_vals in head_mean_ds.items():
+        for i, d_val in enumerate(d_vals):
+            if i < len(combos):
+                d_matrix[combos[i]][head_key] = d_val
+    return d_matrix
+
+
+class TestComputeHeadAsymmetry:
+    def test_all_negative(self) -> None:
+        """All heads negative -> signed_excess = +num_heads (n_neg - n_pos)."""
+        d_matrix = _make_d_matrix_for_asymmetry(
+            {
+                (0, 0): [-0.1] * 12,
+                (0, 1): [-0.2] * 12,
+            }
+        )
+        result = compute_head_asymmetry(d_matrix, num_layers=1, num_heads=2)
+        assert result.n_negative_heads == 2
+        assert result.n_positive_heads == 0
+        assert result.signed_excess == 2
+        assert result.negative_fraction == pytest.approx(1.0)
+
+    def test_mixed_signs(self) -> None:
+        """One negative, one positive."""
+        d_matrix = _make_d_matrix_for_asymmetry(
+            {
+                (0, 0): [-0.3] * 12,
+                (0, 1): [0.2] * 12,
+            }
+        )
+        result = compute_head_asymmetry(d_matrix, num_layers=1, num_heads=2)
+        assert result.n_negative_heads == 1
+        assert result.n_positive_heads == 1
+        assert result.signed_excess == 0
+        assert result.negative_fraction == pytest.approx(0.5)
+
+    def test_absent_head(self) -> None:
+        """Head with zero combos in d_matrix -> absent, not counted."""
+        # Only (0,0) has data; (0,1) absent from all combos
+        d_matrix = _make_d_matrix_for_asymmetry(
+            {
+                (0, 0): [-0.1] * 12,
+            }
+        )
+        result = compute_head_asymmetry(d_matrix, num_layers=1, num_heads=2)
+        assert result.n_absent_heads == 1
+        assert result.n_negative_heads == 1
+        assert result.signed_excess == 1
+
+    def test_sparse_head_excluded(self) -> None:
+        """Head with < min_present_combos -> sparse, excluded from vote."""
+        # (0,0) has 12 combos, (0,1) has only 3 (below default min=6)
+        d_matrix = _make_d_matrix_for_asymmetry(
+            {
+                (0, 0): [-0.1] * 12,
+                (0, 1): [-0.5] * 3,  # only 3 combos
+            }
+        )
+        result = compute_head_asymmetry(d_matrix, num_layers=1, num_heads=2)
+        assert result.n_sparse_heads == 1
+        assert result.n_negative_heads == 1  # only (0,0) votes
+        assert result.signed_excess == 1
+
+    def test_sign_eps_deadzone(self) -> None:
+        """Head with |mean_d| <= sign_eps -> zero, not positive or negative."""
+        tiny = 1e-15  # below default sign_eps=1e-10
+        d_matrix = _make_d_matrix_for_asymmetry(
+            {
+                (0, 0): [tiny] * 12,
+            }
+        )
+        result = compute_head_asymmetry(d_matrix, num_layers=1, num_heads=1)
+        assert result.n_zero_heads == 1
+        assert result.n_negative_heads == 0
+        assert result.n_positive_heads == 0
+
+    def test_none_d_values_excluded_from_mean(self) -> None:
+        """None d values do not contribute to per-head mean."""
+        # 8 combos with d=-0.3, 4 combos with d=None -> present=8, mean=-0.3
+        d_matrix = _make_d_matrix_for_asymmetry(
+            {
+                (0, 0): [-0.3] * 8 + [None] * 4,
+            }
+        )
+        result = compute_head_asymmetry(d_matrix, num_layers=1, num_heads=1)
+        assert result.n_negative_heads == 1
+        assert result.mean_head_mean_d == pytest.approx(-0.3)
+
+    def test_custom_min_combos(self) -> None:
+        """Custom min_present_combos threshold."""
+        d_matrix = _make_d_matrix_for_asymmetry(
+            {
+                (0, 0): [-0.1] * 12,
+                (0, 1): [-0.5] * 10,
+            }
+        )
+        # With min_combos=11, (0,1) has 10 -> sparse
+        result = compute_head_asymmetry(d_matrix, num_layers=1, num_heads=2, min_present_combos=11)
+        assert result.n_sparse_heads == 1
+        assert result.n_negative_heads == 1
+
+    def test_both_zero_negative_fraction_none(self) -> None:
+        """If both n_neg and n_pos are zero, negative_fraction is None."""
+        tiny = 1e-15
+        d_matrix = _make_d_matrix_for_asymmetry(
+            {
+                (0, 0): [tiny] * 12,
+            }
+        )
+        result = compute_head_asymmetry(d_matrix, num_layers=1, num_heads=1)
+        assert result.negative_fraction is None
+
+    def test_mean_head_stats_voting_only(self) -> None:
+        """mean_head_mean_d and mean_head_abs_mean_d computed over voting heads only."""
+        d_matrix = _make_d_matrix_for_asymmetry(
+            {
+                (0, 0): [-0.2] * 12,
+                (0, 1): [0.4] * 12,
+            }
+        )
+        result = compute_head_asymmetry(d_matrix, num_layers=1, num_heads=2)
+        # voting heads: (0,0) mean=-0.2, (0,1) mean=0.4
+        assert result.mean_head_mean_d == pytest.approx((-0.2 + 0.4) / 2)
+        assert result.mean_head_abs_mean_d == pytest.approx((0.2 + 0.4) / 2)
