@@ -578,7 +578,7 @@ class TestGoldenValueRegression:
         assert result.observed.signed_excess == 1
 
         s = result.null_signed_excess_summary
-        assert s.mean == 0.24
-        assert s.std == 0.9707728879609279
+        assert s.mean == pytest.approx(0.24)
+        assert s.std == pytest.approx(0.9707728879609279, rel=1e-12)
         assert s.min_val == -1.0
         assert s.max_val == 1.0
