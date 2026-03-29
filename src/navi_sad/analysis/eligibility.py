@@ -8,10 +8,8 @@ from __future__ import annotations
 
 from collections import defaultdict
 
-from navi_sad.analysis.types import EligibilityCell, EligibilityTable
+from navi_sad.analysis.types import CANONICAL_LABELS, EligibilityCell, EligibilityTable
 from navi_sad.signal.pe_features import SamplePEFeatures
-
-VALID_LABELS = frozenset({"correct", "incorrect"})
 
 
 def build_eligibility_table(
@@ -39,9 +37,9 @@ def build_eligibility_table(
     # Validate labels
     for idx in samples:
         label = labels[idx]  # KeyError if missing
-        if label not in VALID_LABELS:
+        if label not in CANONICAL_LABELS:
             raise ValueError(
-                f"Sample {idx}: unknown label {label!r}. Must be one of: {sorted(VALID_LABELS)}"
+                f"Sample {idx}: unknown label {label!r}. Must be one of: {sorted(CANONICAL_LABELS)}"
             )
 
     n_correct = sum(1 for idx in samples if labels[idx] == "correct")

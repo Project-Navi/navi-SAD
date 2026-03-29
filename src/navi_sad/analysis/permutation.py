@@ -18,6 +18,7 @@ from navi_sad.analysis.recurrence import (
 )
 from navi_sad.analysis.types import (
     AsymmetryNullResult,
+    NullDistributionSummary,
     PermutationNullConfig,
     PermutationNullResult,
     RecurrenceNullReport,
@@ -121,6 +122,33 @@ def stratified_permute_labels(
     return shuffled
 
 
+def _compute_distribution_stats(values: list[int]) -> NullDistributionSummary:
+    """Compute descriptive summary of a null distribution.
+
+    Shared implementation for both recurrence null and asymmetry null.
+    Population std (ddof=0). Nearest-rank percentiles (no interpolation).
+    """
+    n = len(values)
+    mean_val = sum(values) / n
+    variance = sum((x - mean_val) ** 2 for x in values) / n
+    std_val = math.sqrt(variance)
+
+    sorted_vals = sorted(values)
+    percentiles: dict[int, float] = {}
+    for pct in (5, 25, 50, 75, 95):
+        idx = min(int(n * pct / 100), n - 1)
+        percentiles[pct] = float(sorted_vals[idx])
+
+    return NullDistributionSummary(
+        mean=mean_val,
+        std=std_val,
+        min_val=float(min(values)),
+        max_val=float(max(values)),
+        percentiles=percentiles,
+        n=n,
+    )
+
+
 _VALID_TAILS = frozenset({"right", "left", "two-sided"})
 
 
@@ -161,30 +189,20 @@ def compute_null_result(
         k = sum(1 for nc in null_counts if abs(nc) >= abs_obs)
     p_value = (k + 1) / (n + 1)
 
-    mean_val = sum(null_counts) / n if n > 0 else 0.0
-    # Descriptive SD of the Monte Carlo null sample (divides by N, not N-1).
-    # Not used in the p-value computation — summary statistic only.
-    variance = sum((x - mean_val) ** 2 for x in null_counts) / n if n > 0 else 0.0
-    std_val = math.sqrt(variance)
+    # Shared summary computation — same semantics as asymmetry null path.
+    summary = _compute_distribution_stats(null_counts)
 
-    # Nearest-rank percentiles (0-based index, no interpolation).
-    # Coarse summary only — not used in p-value computation.
-    sorted_counts = sorted(null_counts)
-    percentiles: dict[int, int] = {}
-    for pct in (5, 25, 50, 75, 95):
-        idx = min(int(n * pct / 100), n - 1)
-        percentiles[pct] = sorted_counts[idx]
-
+    # Populate flat fields from summary (keep PermutationNullResult's public shape).
     return PermutationNullResult(
         observed=observed,
         null_counts=null_counts,
         p_value=p_value,
-        expected_under_null=mean_val,
-        null_mean=mean_val,
-        null_std=std_val,
-        null_min=min(null_counts) if null_counts else 0,
-        null_max=max(null_counts) if null_counts else 0,
-        null_percentiles=percentiles,
+        expected_under_null=summary.mean,
+        null_mean=summary.mean,
+        null_std=summary.std,
+        null_min=int(summary.min_val),
+        null_max=int(summary.max_val),
+        null_percentiles={k: int(v) for k, v in summary.percentiles.items()},
     )
 
 
@@ -276,26 +294,6 @@ def run_permutation_null(
 # -- Asymmetry null (PR #30) --
 
 
-def _null_summary(null_values: list[int]) -> dict[str, float]:
-    """Compute summary statistics of the null distribution."""
-    n = len(null_values)
-    mean = sum(null_values) / n
-    variance = sum((x - mean) ** 2 for x in null_values) / n
-    std = math.sqrt(variance)
-    sorted_vals = sorted(null_values)
-    percentiles: dict[str, float] = {}
-    for pct in (5, 25, 50, 75, 95):
-        idx = min(int(n * pct / 100), n - 1)
-        percentiles[f"p{pct}"] = float(sorted_vals[idx])
-    return {
-        "mean": mean,
-        "std": std,
-        "min": float(min(null_values)),
-        "max": float(max(null_values)),
-        **percentiles,
-    }
-
-
 def run_asymmetry_null(
     lookup: PELookup,
     labels: dict[int, str],
@@ -364,7 +362,7 @@ def run_asymmetry_null(
         observed=observed_stat,
         p_value_two_sided=p_two_sided,
         p_value_one_sided_negative=p_one_sided_negative,
-        null_signed_excess_summary=_null_summary(null_signed_excesses),
+        null_signed_excess_summary=_compute_distribution_stats(null_signed_excesses),
         n_permutations=n_permutations,
     )
 
@@ -462,6 +460,6 @@ def run_paired_asymmetry_null(
         observed=observed_stat,
         p_value_two_sided=p_two_sided,
         p_value_one_sided_negative=p_one_sided_negative,
-        null_signed_excess_summary=_null_summary(null_signed_excesses),
+        null_signed_excess_summary=_compute_distribution_stats(null_signed_excesses),
         n_permutations=n_permutations,
     )

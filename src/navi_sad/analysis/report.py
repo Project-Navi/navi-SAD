@@ -226,9 +226,9 @@ def _format_asymmetry_section(
     lines.append(f"- **N permutations:** {result.n_permutations}")
     summary = result.null_signed_excess_summary
     lines.append(
-        f"- **Null signed excess:** mean={summary.get('mean', 0):.1f}, "
-        f"std={summary.get('std', 0):.1f}, "
-        f"range=[{summary.get('min', 0):.0f}, {summary.get('max', 0):.0f}]"
+        f"- **Null signed excess:** mean={summary.mean:.1f}, "
+        f"std={summary.std:.1f}, "
+        f"range=[{summary.min_val:.0f}, {summary.max_val:.0f}]"
     )
     lines.append("")
     return lines

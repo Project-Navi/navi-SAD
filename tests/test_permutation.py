@@ -7,6 +7,7 @@ reject impossible strata, planted signal detection, exchangeable no-signal.
 from __future__ import annotations
 
 import random
+import typing
 
 import pytest
 
@@ -378,8 +379,8 @@ class TestRunAsymmetryNull:
         assert 0 < result.p_value_two_sided <= 1.0
         assert 0 < result.p_value_one_sided_negative <= 1.0
         assert result.n_permutations == 50
-        assert "mean" in result.null_signed_excess_summary
-        assert "std" in result.null_signed_excess_summary
+        assert isinstance(result.null_signed_excess_summary.mean, float)
+        assert isinstance(result.null_signed_excess_summary.std, float)
 
     def test_deterministic_with_seed(self) -> None:
         """Same seed -> same results."""
@@ -466,7 +467,7 @@ class TestRunPairedAsymmetryNull:
         assert 0 < result.p_value_two_sided <= 1.0
         assert 0 < result.p_value_one_sided_negative <= 1.0
         assert result.n_permutations == 50
-        assert "mean" in result.null_signed_excess_summary
+        assert isinstance(result.null_signed_excess_summary.mean, float)
 
     def test_deterministic_with_seed(self) -> None:
         """Same seed -> same results."""
@@ -506,7 +507,7 @@ class TestRunPairedAsymmetryNull:
         )
         # With 10 pairs and independent coin flips, the null distribution
         # should not be degenerate (all same value). Check variance > 0.
-        assert result.null_signed_excess_summary["std"] >= 0.0
+        assert result.null_signed_excess_summary.std >= 0.0
         # The observed stat should have the expected number of heads
         assert result.observed.n_positive_heads + result.observed.n_negative_heads <= 4
 
@@ -522,3 +523,107 @@ class TestRunPairedAsymmetryNull:
                 n_permutations=10,
                 seed=42,
             )
+
+
+class TestGoldenValueRegression:
+    """Golden-value tests proving numeric identity after null-summary refactor.
+
+    Values captured on main (commit 8a24c77) before refactor.
+    If any value changes, the refactor has introduced a behavioral difference.
+    """
+
+    GOLDEN_NULL_COUNTS: typing.ClassVar[list[int]] = [3, 7, 1, 9, 5, 2, 8, 4, 6, 0]
+
+    def test_compute_null_result_right_tail(self) -> None:
+        r = compute_null_result(observed=5, null_counts=self.GOLDEN_NULL_COUNTS, tail="right")
+        assert r.p_value == 0.5454545454545454
+        assert r.null_mean == 4.5
+        assert r.null_std == 2.8722813232690143
+        assert r.null_min == 0
+        assert r.null_max == 9
+        assert r.null_percentiles == {5: 0, 25: 2, 50: 5, 75: 7, 95: 9}
+
+    def test_compute_null_result_left_tail(self) -> None:
+        r = compute_null_result(observed=5, null_counts=self.GOLDEN_NULL_COUNTS, tail="left")
+        assert r.p_value == 0.6363636363636364
+
+    def test_compute_null_result_two_sided(self) -> None:
+        r = compute_null_result(observed=5, null_counts=self.GOLDEN_NULL_COUNTS, tail="two-sided")
+        assert r.p_value == 0.5454545454545454
+
+    def test_asymmetry_null_summary_identity(self) -> None:
+        """Asymmetry null summary must match golden values exactly."""
+        rng = random.Random(42)
+        labels = {i: "correct" if i <= 5 else "incorrect" for i in range(1, 11)}
+        token_counts = dict.fromkeys(range(1, 11), 100)
+        lookup: PELookup = {}
+        for mode in ("raw", "diff", "residual"):
+            for segment in ("full", "early", "mid", "late"):
+                lookup[(mode, segment)] = {
+                    (0, 0): {i: 0.5 + rng.gauss(0, 0.01) for i in range(1, 11)}
+                }
+
+        result = run_asymmetry_null(
+            lookup=lookup,
+            labels=labels,
+            token_counts=token_counts,
+            num_layers=1,
+            num_heads=1,
+            n_permutations=50,
+            n_bins=1,
+            seed=42,
+        )
+        assert result.p_value_two_sided == 1.0
+        assert result.p_value_one_sided_negative == 0.6274509803921569
+        assert result.observed.signed_excess == 1
+
+        s = result.null_signed_excess_summary
+        assert s.mean == pytest.approx(0.24)
+        assert s.std == pytest.approx(0.9707728879609279, rel=1e-12)
+        assert s.min_val == -1.0
+        assert s.max_val == 1.0
+        assert s.percentiles == {5: -1.0, 25: -1.0, 50: 1.0, 75: 1.0, 95: 1.0}
+        assert s.n == 50
+
+    def test_asymmetry_null_to_dict_legacy_flat_shape(self) -> None:
+        """AsymmetryNullResult.to_dict() must preserve legacy flat JSON shape.
+
+        The old _null_summary() produced {mean, std, min, max, p5, p25, ...}.
+        The refactored code must emit the same keys for artifact compatibility.
+        """
+        rng = random.Random(42)
+        labels = {i: "correct" if i <= 5 else "incorrect" for i in range(1, 11)}
+        token_counts = dict.fromkeys(range(1, 11), 100)
+        lookup: PELookup = {}
+        for mode in ("raw", "diff", "residual"):
+            for segment in ("full", "early", "mid", "late"):
+                lookup[(mode, segment)] = {
+                    (0, 0): {i: 0.5 + rng.gauss(0, 0.01) for i in range(1, 11)}
+                }
+
+        result = run_asymmetry_null(
+            lookup=lookup,
+            labels=labels,
+            token_counts=token_counts,
+            num_layers=1,
+            num_heads=1,
+            n_permutations=50,
+            n_bins=1,
+            seed=42,
+        )
+        d = result.to_dict()
+        summary = d["null_signed_excess_summary"]
+        # Must have legacy flat keys, not nested "percentiles" object
+        assert "mean" in summary
+        assert "std" in summary
+        assert "min" in summary
+        assert "max" in summary
+        assert "p5" in summary
+        assert "p25" in summary
+        assert "p50" in summary
+        assert "p75" in summary
+        assert "p95" in summary
+        # Must NOT have the nested NullDistributionSummary shape
+        assert "percentiles" not in summary
+        assert "min_val" not in summary
+        assert "max_val" not in summary
