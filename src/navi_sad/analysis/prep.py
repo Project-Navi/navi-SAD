@@ -10,6 +10,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+import structlog
+
 from navi_sad.analysis.eligibility import build_eligibility_table
 from navi_sad.analysis.loader import AnalysisInput, load_and_validate, step_records_to_dicts
 from navi_sad.analysis.recurrence import PELookup, build_pe_lookup
@@ -21,6 +23,8 @@ from navi_sad.signal.pe_features import (
     compute_sample_pe_features,
     extract_head_sad_series,
 )
+
+log = structlog.get_logger()
 
 
 @dataclass(frozen=True)
@@ -76,6 +80,13 @@ def prepare_series_data(
         all_head_series.append(hs)
 
     baseline = compute_positional_baseline(all_head_series)
+
+    log.info(
+        "series_data_prepared",
+        n_samples=len(head_series),
+        num_layers=num_layers,
+        num_heads=num_heads,
+    )
 
     return SeriesData(
         input=data,
@@ -149,6 +160,13 @@ def prepare_series_data_from_subset(
         hs = extract_head_sad_series(per_step_dicts[idx], num_layers, num_heads)
         head_series[idx] = hs
 
+    log.info(
+        "subset_prepared",
+        n_indices=len(indices),
+        num_layers=num_layers,
+        num_heads=num_heads,
+    )
+
     return SeriesData(
         input=subset_input,
         head_series=head_series,
@@ -199,11 +217,20 @@ def compute_baseline_deviation(
             n_positions_compared=0,
         )
 
-    return BaselineDeviation(
+    result = BaselineDeviation(
         max_abs_deviation=max(all_deviations),
         mean_abs_deviation=sum(all_deviations) / len(all_deviations),
         n_positions_compared=len(all_deviations),
     )
+
+    log.info(
+        "baseline_deviation_computed",
+        max_abs=result.max_abs_deviation,
+        mean_abs=result.mean_abs_deviation,
+        n_positions=result.n_positions_compared,
+    )
+
+    return result
 
 
 def compute_pe_bundle(
@@ -237,6 +264,13 @@ def compute_pe_bundle(
 
     lookup = build_pe_lookup(pe_samples)
     eligibility = build_eligibility_table(pe_samples, series_data.input.labels)
+
+    log.info(
+        "pe_bundle_computed",
+        D=pe_config.D,
+        n_samples=len(pe_samples),
+        n_lookup_combos=len(lookup),
+    )
 
     return PEBundle(
         pe_samples=pe_samples,

@@ -17,8 +17,9 @@ from __future__ import annotations
 
 import argparse
 import json
-import logging
 from pathlib import Path
+
+import structlog
 
 from navi_sad.analysis.loader import load_reviewer_votes
 from navi_sad.analysis.matching import match_by_token_count
@@ -37,7 +38,7 @@ from navi_sad.analysis.selection import select_unanimous
 from navi_sad.analysis.types import AsymmetryNullResult, BaselineDeviation, SelectionDiagnostics
 from navi_sad.signal.pe_features import PEConfig
 
-logger = logging.getLogger(__name__)
+log = structlog.get_logger()
 
 NUM_LAYERS = 32
 NUM_HEADS = 32
@@ -55,23 +56,26 @@ def main() -> None:
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--n-bins", type=int, default=2)
     parser.add_argument("--D", type=int, default=3, help="PE embedding dimension")
+    parser.add_argument("--json-logs", action="store_true", help="Emit JSON log lines")
     args = parser.parse_args()
 
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+    from navi_sad.logging import configure_logging
+
+    configure_logging(json=args.json_logs)
 
     results_dir = Path(args.results_dir)
     pe_config = PEConfig(D=args.D)
 
     # ── Shared prep (load, validate, extract series, compute baseline) ──
-    logger.info("Preparing full-cohort series data from %s", results_dir)
+    log.info("Preparing full-cohort series data from %s", results_dir)
     series_data = prepare_series_data(results_dir, num_layers=NUM_LAYERS, num_heads=NUM_HEADS)
-    logger.info(
+    log.info(
         "Loaded %d correct, %d incorrect",
         series_data.input.n_correct,
         series_data.input.n_incorrect,
     )
 
-    logger.info("Computing PE features (D=%d)", pe_config.D)
+    log.info("Computing PE features (D=%d)", pe_config.D)
     pe_bundle = compute_pe_bundle(series_data, pe_config=pe_config)
     validate_combo_set(pe_bundle.lookup)
 
@@ -80,9 +84,7 @@ def main() -> None:
     )
 
     # ── Analysis 1: Full-cohort signed asymmetry null ──
-    logger.info(
-        "Analysis 1: Full-cohort signed asymmetry null (%d permutations)", args.n_permutations
-    )
+    log.info("Analysis 1: Full-cohort signed asymmetry null (%d permutations)", args.n_permutations)
     full_cohort_result = run_asymmetry_null(
         lookup=pe_bundle.lookup,
         labels=series_data.input.labels,
@@ -93,7 +95,7 @@ def main() -> None:
         n_bins=args.n_bins,
         seed=args.seed,
     )
-    logger.info(
+    log.info(
         "Full-cohort: signed_excess=%d, p_two=%.4f, p_neg=%.4f",
         full_cohort_result.observed.signed_excess,
         full_cohort_result.p_value_two_sided,
@@ -101,11 +103,11 @@ def main() -> None:
     )
 
     # ── Analysis 2: Length-matched ──
-    logger.info("Analysis 2: Length-matched")
+    log.info("Analysis 2: Length-matched")
     match_spec, match_diag, pairs = match_by_token_count(
         series_data.input.labels, series_data.input.token_counts
     )
-    logger.info(
+    log.info(
         "Matched: %d correct + %d incorrect -> %d pairs",
         match_spec.n_correct,
         match_spec.n_incorrect,
@@ -128,7 +130,7 @@ def main() -> None:
         matched_baseline_dev = compute_baseline_deviation(
             matched_series.head_series, series_data.baseline
         )
-        logger.info(
+        log.info(
             "  Baseline deviation: max=%.6f, mean=%.6f",
             matched_baseline_dev.max_abs_deviation,
             matched_baseline_dev.mean_abs_deviation,
@@ -141,7 +143,7 @@ def main() -> None:
         matched_token_counts = matched_series.input.token_counts
 
         # Primary: pair-restricted null
-        logger.info("  Pair-restricted null (%d permutations)", args.n_permutations)
+        log.info("  Pair-restricted null (%d permutations)", args.n_permutations)
         matched_result = run_paired_asymmetry_null(
             lookup=matched_bundle.lookup,
             labels=matched_labels,
@@ -151,14 +153,14 @@ def main() -> None:
             n_permutations=args.n_permutations,
             seed=args.seed,
         )
-        logger.info(
+        log.info(
             "  Paired: signed_excess=%d, p_two=%.4f",
             matched_result.observed.signed_excess,
             matched_result.p_value_two_sided,
         )
 
         # Sensitivity: stratified null
-        logger.info("  Stratified null (sensitivity, %d permutations)", args.n_permutations)
+        log.info("  Stratified null (sensitivity, %d permutations)", args.n_permutations)
         matched_sensitivity = run_asymmetry_null(
             lookup=matched_bundle.lookup,
             labels=matched_labels,
@@ -169,15 +171,15 @@ def main() -> None:
             n_bins=1,  # matched subset, stratification not needed
             seed=args.seed,
         )
-        logger.info(
+        log.info(
             "  Stratified: p_two=%.4f",
             matched_sensitivity.p_value_two_sided,
         )
     else:
-        logger.warning("No matched pairs — skipping length-matched analysis")
+        log.warning("No matched pairs — skipping length-matched analysis")
 
     # ── Analysis 3: Unanimous-only ──
-    logger.info("Analysis 3: Unanimous-only")
+    log.info("Analysis 3: Unanimous-only")
     labeling_dir = results_dir / "labeling"
     unanimous_result: AsymmetryNullResult | None = None
     unanimous_diag: SelectionDiagnostics | None = None
@@ -186,7 +188,7 @@ def main() -> None:
     if labeling_dir.exists():
         votes = load_reviewer_votes(labeling_dir)
         unan_spec, unanimous_diag = select_unanimous(votes, series_data.input.labels)
-        logger.info(
+        log.info(
             "Unanimous: %d correct + %d incorrect (excluded %d ambiguous, %d non-unanimous)",
             unan_spec.n_correct,
             unan_spec.n_incorrect,
@@ -205,7 +207,7 @@ def main() -> None:
             unanimous_baseline_dev = compute_baseline_deviation(
                 unan_series.head_series, series_data.baseline
             )
-            logger.info(
+            log.info(
                 "  Baseline deviation: max=%.6f, mean=%.6f",
                 unanimous_baseline_dev.max_abs_deviation,
                 unanimous_baseline_dev.mean_abs_deviation,
@@ -213,7 +215,7 @@ def main() -> None:
 
             unan_bundle = compute_pe_bundle(unan_series, pe_config=pe_config)
 
-            logger.info("  Asymmetry null (%d permutations)", args.n_permutations)
+            log.info("  Asymmetry null (%d permutations)", args.n_permutations)
             unanimous_result = run_asymmetry_null(
                 lookup=unan_bundle.lookup,
                 labels=unan_series.input.labels,
@@ -224,15 +226,15 @@ def main() -> None:
                 n_bins=args.n_bins,
                 seed=args.seed,
             )
-            logger.info(
+            log.info(
                 "  Unanimous: signed_excess=%d, p_two=%.4f",
                 unanimous_result.observed.signed_excess,
                 unanimous_result.p_value_two_sided,
             )
         else:
-            logger.warning("No unanimous correct+incorrect — skipping analysis")
+            log.warning("No unanimous correct+incorrect — skipping analysis")
     else:
-        logger.warning("No labeling/ directory — skipping unanimous analysis")
+        log.warning("No labeling/ directory — skipping unanimous analysis")
 
     # ── Write outputs ──
     # JSON
@@ -262,7 +264,7 @@ def main() -> None:
     json_path = results_dir / "pe_confound_controls.json"
     with open(json_path, "w", encoding="utf-8") as f:
         json.dump(json_data, f, indent=2)
-    logger.info("Wrote %s", json_path)
+    log.info("Wrote %s", json_path)
 
     # Markdown
     md = format_confound_controls_markdown(
@@ -279,23 +281,23 @@ def main() -> None:
     md_path = results_dir / "pe_confound_controls.md"
     with open(md_path, "w", encoding="utf-8") as f:
         f.write(md)
-    logger.info("Wrote %s", md_path)
+    log.info("Wrote %s", md_path)
 
     # ── Summary ──
-    logger.info("=== Summary ===")
-    logger.info(
+    log.info("=== Summary ===")
+    log.info(
         "Full-cohort: signed_excess=%d, p_two=%.4f",
         full_cohort_result.observed.signed_excess,
         full_cohort_result.p_value_two_sided,
     )
     if matched_result:
-        logger.info(
+        log.info(
             "Length-matched (paired): signed_excess=%d, p_two=%.4f",
             matched_result.observed.signed_excess,
             matched_result.p_value_two_sided,
         )
     if unanimous_result:
-        logger.info(
+        log.info(
             "Unanimous-only: signed_excess=%d, p_two=%.4f",
             unanimous_result.observed.signed_excess,
             unanimous_result.p_value_two_sided,

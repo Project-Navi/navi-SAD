@@ -5,7 +5,11 @@ Pure filtering. No RNG. Produces SubsetSpec with diagnostics.
 
 from __future__ import annotations
 
+import structlog
+
 from navi_sad.analysis.types import SelectionDiagnostics, SubsetSpec
+
+log = structlog.get_logger()
 
 
 def select_unanimous(
@@ -60,6 +64,15 @@ def select_unanimous(
         n_incorrect_before=n_incorrect_before,
         n_correct_after=n_correct_after,
         n_incorrect_after=n_incorrect_after,
+        n_excluded_ambiguous=n_excluded_ambiguous,
+        n_excluded_non_unanimous=n_excluded_non_unanimous,
+    )
+
+    log.info(
+        "unanimous_selection_complete",
+        n_included=len(included),
+        n_correct=n_correct_after,
+        n_incorrect=n_incorrect_after,
         n_excluded_ambiguous=n_excluded_ambiguous,
         n_excluded_non_unanimous=n_excluded_non_unanimous,
     )

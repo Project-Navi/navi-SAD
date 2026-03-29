@@ -10,6 +10,8 @@ import math
 import random
 from collections import defaultdict
 
+import structlog
+
 from navi_sad.analysis.recurrence import (
     PELookup,
     compute_d_matrix,
@@ -23,6 +25,8 @@ from navi_sad.analysis.types import (
     PermutationNullResult,
     RecurrenceNullReport,
 )
+
+log = structlog.get_logger()
 
 
 def assign_length_bins(
@@ -233,6 +237,14 @@ def run_permutation_null(
     Returns:
         RecurrenceNullReport with all results.
     """
+    log.info(
+        "permutation_null_started",
+        n_permutations=config.n_permutations,
+        seed=config.seed,
+        n_bins=config.n_bins,
+        d_threshold=config.d_threshold,
+    )
+
     # Observed statistic
     observed_stat, observed_profile = compute_recurrence(
         lookup,
@@ -276,16 +288,27 @@ def run_permutation_null(
         null_at_min.append(perm_stat.recurring_head_count)
         null_at_seven.append(perm_profile.counts_at_level.get(7, 0))
 
+    null_result_min = compute_null_result(
+        observed_stat.recurring_head_count,
+        null_at_min,
+    )
+    null_result_seven = compute_null_result(observed_at_seven, null_at_seven)
+
+    log.info(
+        "permutation_null_complete",
+        observed_at_min=observed_stat.recurring_head_count,
+        p_value_at_min=null_result_min.p_value,
+        observed_at_seven=observed_at_seven,
+        p_value_at_seven=null_result_seven.p_value,
+    )
+
     return RecurrenceNullReport(
         config=config,
         eligibility=None,  # Caller constructs a new report with eligibility attached
         observed=observed_stat,
         observed_profile=observed_profile,
-        null_at_min_combos=compute_null_result(
-            observed_stat.recurring_head_count,
-            null_at_min,
-        ),
-        null_at_seven=compute_null_result(observed_at_seven, null_at_seven),
+        null_at_min_combos=null_result_min,
+        null_at_seven=null_result_seven,
         bin_boundaries=bin_boundaries,
         bin_counts={k: dict(v) for k, v in bin_counts.items()},
     )
@@ -315,6 +338,13 @@ def run_asymmetry_null(
     Returns AsymmetryNullResult with two-sided (primary) and
     one-sided (secondary/descriptive) p-values.
     """
+    log.info(
+        "asymmetry_null_started",
+        n_permutations=n_permutations,
+        seed=seed,
+        n_bins=n_bins,
+    )
+
     # Observed
     observed_d_matrix = compute_d_matrix(lookup, labels, num_layers=num_layers, num_heads=num_heads)
     observed_stat = compute_head_asymmetry(
@@ -357,6 +387,13 @@ def run_asymmetry_null(
     # positive = more negative heads. Right-tail: null >= observed.
     k_neg = sum(1 for nc in null_signed_excesses if nc >= obs_se)
     p_one_sided_negative = (k_neg + 1) / (n_permutations + 1)
+
+    log.info(
+        "asymmetry_null_complete",
+        signed_excess=obs_se,
+        p_two_sided=p_two_sided,
+        p_one_sided_negative=p_one_sided_negative,
+    )
 
     return AsymmetryNullResult(
         observed=observed_stat,
@@ -419,6 +456,13 @@ def run_paired_asymmetry_null(
     if not pairs:
         raise ValueError("pairs must be non-empty")
 
+    log.info(
+        "paired_null_started",
+        n_pairs=len(pairs),
+        n_permutations=n_permutations,
+        seed=seed,
+    )
+
     # Observed
     observed_d_matrix = compute_d_matrix(lookup, labels, num_layers=num_layers, num_heads=num_heads)
     observed_stat = compute_head_asymmetry(
@@ -455,6 +499,13 @@ def run_paired_asymmetry_null(
 
     k_neg = sum(1 for nc in null_signed_excesses if nc >= obs_se)
     p_one_sided_negative = (k_neg + 1) / (n_permutations + 1)
+
+    log.info(
+        "paired_null_complete",
+        signed_excess=obs_se,
+        p_two_sided=p_two_sided,
+        p_one_sided_negative=p_one_sided_negative,
+    )
 
     return AsymmetryNullResult(
         observed=observed_stat,
