@@ -10,10 +10,28 @@ from __future__ import annotations
 import json
 import logging
 
+import pytest
 import structlog
 from structlog.testing import capture_logs
 
+import navi_sad.logging as logging_mod
 from navi_sad.logging import configure_logging
+
+
+@pytest.fixture(autouse=True)
+def _reset_configure_logging_guard() -> None:
+    """Reset the ``_configured`` one-shot guard around every test.
+
+    Without this, the first test to call ``configure_logging`` flips the
+    guard True for the rest of the session, so later tests that pass a
+    different ``json=`` argument become silent no-ops and never exercise
+    the renderer / dictConfig path they intend to. An autouse fixture is
+    safer than per-test inline resets because it guarantees order-
+    independence even as the file grows.
+    """
+    logging_mod._configured = False
+    yield
+    logging_mod._configured = False
 
 
 class TestConfigureLogging:
