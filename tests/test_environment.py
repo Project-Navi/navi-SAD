@@ -37,6 +37,30 @@ def restore_torch_backends():
         os.environ["CUBLAS_WORKSPACE_CONFIG"] = original_workspace
 
 
+@pytest.fixture(params=[False, True], ids=["no_cuda", "with_cuda"])
+def mock_cuda_state(request):
+    """Parametrise over both branches of `capture_environment()`.
+
+    `no_cuda` exercises the early-return branch when CUDA is absent.
+    `with_cuda` mocks all CUDA introspection calls so the
+    CUDA-available branch executes on CPU CI without a real GPU. The
+    mocked return values are arbitrary; tests that use this fixture
+    care about state mutation, not the snapshot values.
+    """
+    if request.param:
+        with (
+            patch("torch.cuda.is_available", return_value=True),
+            patch("torch.cuda.device_count", return_value=1),
+            patch("torch.cuda.get_device_name", return_value="Mock GPU"),
+            patch("torch.cuda.get_device_capability", return_value=(8, 6)),
+            patch("torch.backends.cudnn.version", return_value=91900),
+        ):
+            yield True
+    else:
+        with patch("torch.cuda.is_available", return_value=False):
+            yield False
+
+
 class TestEnvironmentSnapshot:
     def test_snapshot_is_frozen(self):
         snap = EnvironmentSnapshot(
@@ -94,52 +118,55 @@ class TestCaptureEnvironment:
         with pytest.raises(dataclasses.FrozenInstanceError):
             snap.gpu_count = 99  # type: ignore[misc]
 
-    def test_capture_does_not_modify_cudnn_flags(self, restore_torch_backends):
+    def test_capture_does_not_modify_cudnn_flags(self, restore_torch_backends, mock_cuda_state):
         """`capture_environment()` is documented as pure observation.
 
         Guard against future refactors silently turning the snapshot
         into a setter by comparing the cudnn flags before and after.
+        Parametrised over both `cuda_available=False` and
+        `cuda_available=True` (the latter is the busier code path with
+        more refactor surface).
         """
         torch.backends.cudnn.deterministic = False  # type: ignore[attr-defined]
         torch.backends.cudnn.benchmark = True  # type: ignore[attr-defined]
         before_deterministic = torch.backends.cudnn.deterministic
         before_benchmark = torch.backends.cudnn.benchmark
 
-        with patch("torch.cuda.is_available", return_value=False):
-            capture_environment()
+        capture_environment()
 
         assert torch.backends.cudnn.deterministic is before_deterministic  # type: ignore[attr-defined]
         assert torch.backends.cudnn.benchmark is before_benchmark  # type: ignore[attr-defined]
 
-    def test_capture_does_not_modify_environment_vars(self, restore_torch_backends):
+    def test_capture_does_not_modify_environment_vars(
+        self, restore_torch_backends, mock_cuda_state
+    ):
         """`capture_environment()` must not write CUBLAS_WORKSPACE_CONFIG.
 
-        Same purity discipline as cudnn flags: refactors that
-        accidentally combine snapshot+setter would break this test.
+        Same purity discipline as cudnn flags. Parametrised over both
+        CUDA branches so the test covers the path most likely to
+        regress (the CUDA-available branch with more code).
         """
         os.environ.pop("CUBLAS_WORKSPACE_CONFIG", None)
-        with patch("torch.cuda.is_available", return_value=False):
-            capture_environment()
+        capture_environment()
         assert "CUBLAS_WORKSPACE_CONFIG" not in os.environ
 
         os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"
-        with patch("torch.cuda.is_available", return_value=False):
-            capture_environment()
+        capture_environment()
         assert os.environ.get("CUBLAS_WORKSPACE_CONFIG") == ":4096:8"
 
-    def test_capture_does_not_seed_rng(self, restore_torch_backends):
+    def test_capture_does_not_seed_rng(self, restore_torch_backends, mock_cuda_state):
         """`capture_environment()` must not change torch RNG state.
 
         A pure snapshot can read RNG state but must not consume or set
         seeds — that would silently affect downstream sampling-driven
-        tests run in the same process.
+        tests run in the same process. Parametrised over both CUDA
+        branches.
         """
         torch.manual_seed(12345)
         before = torch.rand(4)
         torch.manual_seed(12345)
 
-        with patch("torch.cuda.is_available", return_value=False):
-            capture_environment()
+        capture_environment()
 
         after = torch.rand(4)
         assert torch.equal(before, after)
