@@ -22,17 +22,27 @@ which research claims depend.
 `main` is the only supported branch. Pre-release tags exist for
 historical reference but receive no backports.
 
-What is pinned: dependency versions in `uv.lock`; model revision and
-dataset revision in `tests/gates/conftest.py` and
-`scripts/pilot_gate3.py`. What is **not** pinned or captured anywhere
-machine-consumable: hardware, CUDA toolkit version, OS, or full run
-environment. Gate-parity tolerances themselves are frozen in code
+What is pinned via `uv.lock`: Python dependency versions, the PyTorch
+wheel (currently `torch==2.11.0+cu130`), and the CUDA user-space libs
+PyTorch ships with (`nvidia-cublas`, `nvidia-cuda-runtime`,
+`nvidia-cudnn-cu13`, etc. — pinned as transitive Python deps).
+
+What is pinned in code: the model revision and dataset revision (commit
+SHAs in `tests/gates/conftest.py` and `scripts/pilot_gate3.py`).
+
+What is **not** pinned anywhere machine-consumable: GPU compute
+capability / model, NVIDIA driver version, host OS / glibc / kernel.
+Gate-parity tolerances themselves are frozen in code
 (`tests/gates/test_gate1_parity.py` notes the calibration date; Gate 2
-uses fixed thresholds not derived from any environment) but the
-hardware they were calibrated on is not formally recorded. This repo
-does not currently make end-to-end reproducibility claims; it makes
-narrower internal claims about gate discipline that hold against the
-pinned artifacts on the original calibration setup.
+uses fixed thresholds not derived from any environment), but the
+hardware they were calibrated on is not formally recorded. The
+calibration was performed on an RTX 3090 (sm_86) at the dates noted in
+the gate test files; numerics on different compute capabilities (e.g.,
+A100 sm_80, H100 sm_90) may differ enough to require re-calibration.
+
+This repo does not currently make end-to-end reproducibility claims; it
+makes narrower internal claims about gate discipline that hold against
+the pinned artifacts on the original calibration hardware.
 
 | Branch | Supported |
 |---|---|
