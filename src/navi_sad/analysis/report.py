@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from typing import Any
 
+import structlog
+
 from navi_sad.analysis.loader import AnalysisInput
 from navi_sad.analysis.types import (
     AsymmetryNullResult,
@@ -17,6 +19,8 @@ from navi_sad.analysis.types import (
     SelectionDiagnostics,
 )
 from navi_sad.signal.pe_features import PEConfig
+
+log = structlog.get_logger()
 
 
 def build_provenance(

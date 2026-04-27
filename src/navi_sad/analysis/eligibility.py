@@ -8,8 +8,12 @@ from __future__ import annotations
 
 from collections import defaultdict
 
+import structlog
+
 from navi_sad.analysis.types import CANONICAL_LABELS, EligibilityCell, EligibilityTable
 from navi_sad.signal.pe_features import SamplePEFeatures
+
+log = structlog.get_logger()
 
 
 def build_eligibility_table(
@@ -90,5 +94,12 @@ def build_eligibility_table(
                 n_incorrect_total=len(combo_incorrect_total[(mode, segment)]),
             )
         )
+
+    log.info(
+        "eligibility_table_built",
+        n_correct=n_correct,
+        n_incorrect=n_incorrect,
+        n_combos=len(cells),
+    )
 
     return EligibilityTable(cells=cells, n_correct=n_correct, n_incorrect=n_incorrect)

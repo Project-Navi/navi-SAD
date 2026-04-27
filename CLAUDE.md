@@ -8,9 +8,9 @@ Spectral Attention Divergence (SAD): a dynamical systems probe for LLM inference
 
 **This is a research harness, not a product. The instrument can lie. Every claim requires evidence.**
 
-## Current State (2026-03-28)
+## Current State (2026-04-21)
 
-Milestone C complete. Gates 0, 1, 2 pass on Mistral-7B. Gate 3 pilot complete (40 samples) + 400-sample replication run. Analysis module built (PRs #28, #29). Confound controls built (PR #31). PE recurrence null run — count statistic dead at |d|>0.5. Dense-small d-landscape observed (mean |d|=0.134, 83.4% negative); confound control machinery built, not yet run on data. 401 CPU + 12 GPU = 413 tests. See [ROADMAP.md](ROADMAP.md) for research priorities.
+Milestone C complete. Gates 0, 1, 2 pass on Mistral-7B. Gate 3 pilot complete (40 samples) + 400-sample replication run. Analysis module built (PRs #28, #29, #32). Confound controls built (PR #31). Structured logging foundation landed (structlog + stdlib bridge, analysis pipeline instrumented). PE recurrence null run — count statistic dead at |d|>0.5. Dense-small d-landscape observed (mean |d|=0.134, 83.4% negative); confound control machinery built, not yet run on data. 419 CPU + 12 GPU = 431 tests. See [ROADMAP.md](ROADMAP.md) for research priorities.
 
 ### Pilot findings (characterization, not evidential)
 
@@ -52,6 +52,8 @@ The 40-sample pilot falsified the naive hypothesis. The 400-sample replication k
 - `scripts/pe_recurrence_null.py` -- thin CLI for PE recurrence null test. Uses prep module, writes JSON + markdown with provenance.
 - `scripts/pe_confound_controls.py` -- thin CLI for confound controls: full-cohort asymmetry, length-matched, unanimous-only analyses. Writes JSON + markdown.
 - `io/writer.py`, `io/reader.py`, `io/derived.py` -- raw/derived gzipped JSONL split
+- `logging.py` -- structlog configuration + stdlib bridge (`configure_logging`, JSON/console modes). Analysis pipeline instrumented at boundaries (loader, prep, recurrence, permutation, matching, selection, report).
+- `benchmarks/` -- stub package for Gate 3 synthetic HMM benchmark harness (empty `__init__.py`; see ROADMAP items 8-9).
 - `.github/workflows/ci.yml` -- lint-typecheck + test jobs, uv-first, SHA-pinned, `--locked`
 - `.pre-commit-config.yaml` -- local pre-commit hooks mirroring CI (ruff check, ruff format, mypy)
 - `AGENTS.md` -- Internal Affairs (Perplexity) auditor prompt
@@ -107,6 +109,10 @@ The 40-sample pilot falsified the naive hypothesis. The 400-sample replication k
 - `docs/plans/POLISH_PASS_SPEC.md` -- Polish pass spec (PerStepDict, fail-closed, type annotations, CI).
 - `docs/plans/POLISH_PASS_PLAN.md` -- Polish pass implementation plan.
 - `docs/plans/PE_RECURRENCE_NULL_PLAN.md` -- Permutation null test plan for PE recurrence statistic.
+- `docs/plans/STRUCTLOG_PLAN.md` -- Structured logging integration plan (Phase 1: foundation + analysis pipeline).
+- `docs/plans/PR30_DENSE_STAT_NULLS_SPEC.md` -- Dense-small d-regime confound controls spec (PR #31 implementation).
+- `docs/plans/PE_ORIENTATION_SPEC.md` -- PE orientation / signed asymmetry design notes.
+- `docs/plans/DEBT_REDUCTION_PLAN.md` -- Technical debt reduction plan.
 - `docs/audit/IA_RESPONSE_2026-03-25.md` -- Formal IA audit response with dispositions.
 - `docs/audit/SESSION_REPORT_2026-03-25.md` -- Full session report with bugs-caught-by-auditors analysis.
 
@@ -212,6 +218,8 @@ These are not guidelines. They are requirements.
 - `make all` runs lint + format + typecheck + test (must pass before commit)
 - `make test` runs offline CPU tests (no GPU required)
 - `make test-gpu` runs gate tests (requires model)
+- Tests live in `tests/` (flat files + `tests/fixtures/`, `tests/gates/`). `conftest.py` declares the `gpu` marker.
+- `CONTRIBUTING.md` covers contribution workflow and PR expectations.
 - CI enforces: `uv run ruff check`, `uv run ruff format --check`, `uv run mypy`, `uv run pytest`
 - CI uses `uv sync --extra dev --locked` -- stale lockfile fails the build
 - Pre-commit hooks mirror CI: `uv run pre-commit install`

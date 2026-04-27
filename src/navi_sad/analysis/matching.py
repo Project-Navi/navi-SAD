@@ -7,7 +7,11 @@ correct dataset_index.
 
 from __future__ import annotations
 
+import structlog
+
 from navi_sad.analysis.types import MatchingDiagnostics, SubsetSpec
+
+log = structlog.get_logger()
 
 
 def match_by_token_count(
@@ -117,6 +121,15 @@ def match_by_token_count(
         max_pair_token_gap=max_gap,
         mean_pair_token_gap=mean_gap,
         dropped_correct_token_summary=dropped_summary,
+    )
+
+    log.info(
+        "length_matching_complete",
+        n_pairs=len(pairs),
+        n_correct_dropped=n_correct_dropped,
+        n_incorrect_dropped=n_incorrect_dropped,
+        max_gap=max_gap,
+        mean_gap=mean_gap,
     )
 
     return spec, diag, pairs

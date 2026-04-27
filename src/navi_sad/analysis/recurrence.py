@@ -2,7 +2,8 @@
 
 Computes the full Cohen's d matrix across all (mode, segment) x (layer, head)
 combinations, then derives recurrence counts, threshold sweeps, and directional
-summaries from it. No RNG. No label shuffling. Pure deterministic computation.
+summaries from it. No RNG. No label shuffling. Deterministic computation with
+boundary observability (structlog events at pipeline boundaries).
 
 Uses numpy for vectorized computation. The pure-Python compute_cohens_d in
 stats/effect_size.py is kept for single-pair use; this module operates on
@@ -12,6 +13,7 @@ the full grid.
 from __future__ import annotations
 
 import numpy as np
+import structlog
 
 from navi_sad.analysis.types import (
     CANONICAL_LABELS,
@@ -22,6 +24,8 @@ from navi_sad.analysis.types import (
 )
 from navi_sad.signal.pe_features import SamplePEFeatures
 from navi_sad.stats.effect_size import POOLED_VAR_EPS
+
+log = structlog.get_logger()
 
 # Type alias for the PE lookup table.
 # Outer: (mode, segment) -> inner: (layer, head) -> {dataset_index: pe_value}

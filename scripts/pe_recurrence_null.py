@@ -12,8 +12,9 @@ from __future__ import annotations
 
 import argparse
 import json
-import logging
 from pathlib import Path
+
+import structlog
 
 from navi_sad.analysis.permutation import run_permutation_null
 from navi_sad.analysis.prep import compute_pe_bundle, prepare_series_data
@@ -26,7 +27,7 @@ from navi_sad.analysis.report import build_provenance, format_markdown
 from navi_sad.analysis.types import PermutationNullConfig, RecurrenceNullReport
 from navi_sad.signal.pe_features import PEConfig
 
-logger = logging.getLogger(__name__)
+log = structlog.get_logger()
 
 NUM_LAYERS = 32
 NUM_HEADS = 32
@@ -48,23 +49,26 @@ def main() -> None:
     )
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--n-bins", type=int, default=2)
+    parser.add_argument("--json-logs", action="store_true", help="Emit JSON log lines")
     args = parser.parse_args()
 
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+    from navi_sad.logging import configure_logging
+
+    configure_logging(json=args.json_logs)
 
     results_dir = Path(args.results_dir)
 
     # Prepare (load, validate, extract series, compute baseline)
-    logger.info("Preparing series data from %s", results_dir)
+    log.info("series_prep_started", results_dir=str(results_dir))
     series_data = prepare_series_data(results_dir, num_layers=NUM_LAYERS, num_heads=NUM_HEADS)
-    logger.info(
-        "Included: %d correct, %d incorrect",
-        series_data.input.n_correct,
-        series_data.input.n_incorrect,
+    log.info(
+        "series_prep_complete",
+        n_correct=series_data.input.n_correct,
+        n_incorrect=series_data.input.n_incorrect,
     )
 
     # Compute PE features at D=3
-    logger.info("Computing PE bundle (D=3)...")
+    log.info("pe_bundle_started", D=3)
     pe_config = PEConfig()
     bundle = compute_pe_bundle(series_data, pe_config)
 
@@ -72,18 +76,18 @@ def main() -> None:
     validate_combo_set(bundle.lookup)
 
     # Compute d matrix (never discard d values)
-    logger.info("Computing d matrix...")
+    log.info("d_matrix_started")
     d_matrix = compute_d_matrix(
         bundle.lookup, series_data.input.labels, num_layers=NUM_LAYERS, num_heads=NUM_HEADS
     )
     d_landscape = summarize_d_matrix(d_matrix, num_layers=NUM_LAYERS, num_heads=NUM_HEADS)
-    logger.info(
-        "d landscape: %d/%d cells present, max|d|=%.4f, mean|d|=%.4f, positive=%.1f%%",
-        d_landscape.present_cells,
-        d_landscape.expected_total_cells,
-        d_landscape.max_abs_d or 0,
-        d_landscape.mean_abs_d or 0,
-        (d_landscape.positive_fraction or 0) * 100,
+    log.info(
+        "d_landscape_summary",
+        present_cells=d_landscape.present_cells,
+        expected_cells=d_landscape.expected_total_cells,
+        max_abs_d=d_landscape.max_abs_d or 0,
+        mean_abs_d=d_landscape.mean_abs_d or 0,
+        positive_fraction=d_landscape.positive_fraction,
     )
 
     # Permutation null
@@ -92,11 +96,11 @@ def main() -> None:
         seed=args.seed,
         n_bins=args.n_bins,
     )
-    logger.info(
-        "Running permutation null: %d permutations, %d bins, seed=%d...",
-        config.n_permutations,
-        config.n_bins,
-        config.seed,
+    log.info(
+        "permutation_null_config",
+        n_permutations=config.n_permutations,
+        n_bins=config.n_bins,
+        seed=config.seed,
     )
     report = run_permutation_null(
         bundle.lookup,
@@ -128,12 +132,12 @@ def main() -> None:
     report_dict["provenance"] = provenance
     with open(json_path, "w", encoding="utf-8") as f:
         json.dump(report_dict, f, indent=2)
-    logger.info("Wrote %s", json_path)
+    log.info("artifact_written", path=str(json_path), format="json")
 
     md_path = results_dir / "pe_recurrence_null.md"
     with open(md_path, "w", encoding="utf-8") as f:
         f.write(format_markdown(report, provenance))
-    logger.info("Wrote %s", md_path)
+    log.info("artifact_written", path=str(md_path), format="markdown")
 
     # Summary to stdout
     print(
