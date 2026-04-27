@@ -14,6 +14,7 @@ htmlcov/
 *.gz
 results/
 site/
+.ipynb_checkpoints/
 
 # Plans, specs, prompts, and audit responses are local working docs, never committed
 docs/plans/
