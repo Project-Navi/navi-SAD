@@ -18,7 +18,6 @@ import torch
 from navi_sad.core.environment import (
     assert_compatible_capability,
     capture_environment,
-    enable_deterministic_mode,
 )
 
 log = structlog.get_logger()
@@ -46,22 +45,17 @@ CALIBRATION_CAPABILITY: tuple[int, int] = (8, 6)
 CALIBRATION_GPU_NAME: str = "NVIDIA GeForce RTX 3090"
 
 
-def pytest_collection_modifyitems(config, items):  # type: ignore[no-untyped-def]
-    """Auto-skip @pytest.mark.gpu tests when no GPU available."""
-    if not torch.cuda.is_available():
-        skip_gpu = pytest.mark.skip(reason="No GPU available")
-        for item in items:
-            if "gpu" in item.keywords:
-                item.add_marker(skip_gpu)
-
-
 @pytest.fixture(scope="session", autouse=True)
 def _gate_environment_setup():
-    """Enable deterministic mode and check calibration hardware.
+    """Check calibration hardware and capture environment snapshot.
 
-    Runs once per session before any gate test. On no-GPU hosts the
-    capability check is skipped (the gpu-marker auto-skip handles test
-    selection).
+    Runs once per session before any gate test. Determinism flags are
+    already set globally in `tests/conftest.py::pytest_configure` so
+    `CUBLAS_WORKSPACE_CONFIG` lands before pytest collection touches
+    CUDA; this fixture is gate-specific concerns only.
+
+    On no-GPU hosts the capability check is skipped (the gpu-marker
+    auto-skip in `tests/conftest.py` handles test selection).
 
     On GPU hosts:
     - Strict-asserts `CALIBRATION_CAPABILITY` (necessary condition for
@@ -75,7 +69,6 @@ def _gate_environment_setup():
       driver/CUDA/cuDNN drift since the original calibration is on
       record in the run output.
     """
-    enable_deterministic_mode()
     if torch.cuda.is_available():
         assert_compatible_capability(CALIBRATION_CAPABILITY, strict=True)
         snapshot = capture_environment()
