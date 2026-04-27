@@ -8,9 +8,9 @@ Spectral Attention Divergence (SAD): a dynamical systems probe for LLM inference
 
 **This is a research harness, not a product. The instrument can lie. Every claim requires evidence.**
 
-## Current State (2026-04-21)
+## Current State (2026-04-27)
 
-Milestone C complete. Gates 0, 1, 2 pass on Mistral-7B. Gate 3 pilot complete (40 samples) + 400-sample replication run. Analysis module built (PRs #28, #29, #32). Confound controls built (PR #31). Structured logging foundation landed (structlog + stdlib bridge, analysis pipeline instrumented). PE recurrence null run — count statistic dead at |d|>0.5. Dense-small d-landscape observed (mean |d|=0.134, 83.4% negative); confound control machinery built, not yet run on data. 419 CPU + 12 GPU = 431 tests. See [ROADMAP.md](ROADMAP.md) for research priorities.
+Milestone C complete. Gates 0, 1, 2 pass on Mistral-7B. Gate 3 pilot complete (40 samples) + 400-sample replication run. Analysis module built (PRs #28, #29, #32). Confound controls built (PR #31). Structured logging foundation landed (structlog + stdlib bridge, analysis pipeline instrumented). PE recurrence null run — count statistic dead at |d|>0.5. Dense-small d-landscape observed (mean |d|=0.134, 83.4% negative); confound control machinery built, not yet run on data. 419 CPU + 12 GPU = 431 tests. See [ROADMAP.md](ROADMAP.md) for research priorities. Maintenance PRs since last update: #33 structlog, #35 mypy 1.20, #38 actions group, #40 claude-code automations, #41 test-logging fixture; #39 closed (transformers 6.0 frozen-decision violation).
 
 ### Pilot findings (characterization, not evidential)
 
