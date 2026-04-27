@@ -85,9 +85,16 @@ def check_transformers_version() -> None:
     them so the two stay in lockstep.
 
     Raises:
-        RuntimeError: if transformers is missing or the installed version is
-            outside ``[_COMPAT_MIN, _COMPAT_MAX)``. The caller in main()
-            converts this to exit code 2.
+        RuntimeError: installed transformers is outside
+            ``[_COMPAT_MIN, _COMPAT_MAX)``, or its ``__version__`` cannot be
+            parsed by packaging.version.Version.
+        ImportError / ModuleNotFoundError: ``transformers``, ``packaging``,
+            or ``navi_sad.core.adapter`` cannot be imported.
+        AttributeError: ``transformers`` is importable but exposes no
+            ``__version__`` attribute.
+
+    The caller in ``main()`` catches all of these and converts them to
+    exit code 2 per the module docstring's contract.
     """
     import transformers
     from packaging.version import InvalidVersion, Version
@@ -191,9 +198,16 @@ def normalise(body: str) -> list[str]:
 
 
 def main() -> int:
+    # Catch broadly: in addition to RuntimeError (the documented version-range
+    # failure path), this also handles ImportError / ModuleNotFoundError
+    # (transformers not installed, packaging not installed, navi_sad not on
+    # sys.path) and AttributeError (transformers without ``__version__``).
+    # All map to exit 2 per the module docstring's exit-code contract — the
+    # script's job is to fail loudly with a clear stderr message, not to
+    # surface a Python traceback.
     try:
         check_transformers_version()
-    except RuntimeError as exc:
+    except Exception as exc:
         print(
             f"[adapter-upstream-diff] version precondition failed: {exc}",
             file=sys.stderr,
