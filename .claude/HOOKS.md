@@ -50,7 +50,7 @@ Both hooks are read from stdin, so they work uniformly across Claude Code versio
         "hooks": [
           {
             "type": "command",
-            "command": "python3 -c 'import sys, json, subprocess; d=json.load(sys.stdin); p=(d.get(\"tool_input\",{}) or {}).get(\"file_path\",\"\") or \"\"; ok = p.endswith(\".py\") and \"navi-SAD\" in p; sys.exit(0) if not ok else (subprocess.run([\"uv\",\"run\",\"--quiet\",\"ruff\",\"check\",\"--fix\",p], check=False), subprocess.run([\"uv\",\"run\",\"--quiet\",\"ruff\",\"format\",p], check=False), sys.exit(0))'"
+            "command": "python3 -c 'import sys, json, subprocess; d=json.load(sys.stdin); p=(d.get(\"tool_input\",{}) or {}).get(\"file_path\",\"\") or \"\"; ok = p.endswith(\".py\") and \"navi_sad\" in p; sys.exit(0) if not ok else (subprocess.run([\"uv\",\"run\",\"--quiet\",\"ruff\",\"check\",\"--fix\",p], check=False), subprocess.run([\"uv\",\"run\",\"--quiet\",\"ruff\",\"format\",p], check=False), sys.exit(0))'"
           }
         ]
       }
@@ -59,7 +59,7 @@ Both hooks are read from stdin, so they work uniformly across Claude Code versio
 }
 ```
 
-- Only runs on `.py` files whose path contains `navi-SAD` — prevents accidental runs when editing files in sibling repos during the same session.
+- Only runs on `.py` files whose path contains `navi_sad` (the package name, present in both relative paths like `src/navi_sad/...` and absolute paths like `/home/.../navi-SAD/src/navi_sad/...`). Prevents accidental runs when editing files in sibling repos during the same session.
 - Errors from ruff are suppressed (`check=False`) so a genuine lint violation doesn't block the edit. Pre-commit still catches violations at commit time.
 
 ---

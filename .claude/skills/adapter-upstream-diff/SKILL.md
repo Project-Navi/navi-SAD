@@ -42,13 +42,6 @@ If the diff output matches only items 1–6, the adapter is correct. Anything el
 - As part of the pre-merge audit for adapter-touching PRs.
 - When Gate 0 fails unexpectedly.
 
-## When to run
-
-- After any edit to `src/navi_sad/core/adapter.py`.
-- Before and after a `transformers` version bump.
-- As part of the pre-merge audit for adapter-touching PRs.
-- When Gate 0 fails unexpectedly.
-
 ## Procedure
 
 1. Confirm `transformers` is installed at the pinned version:
