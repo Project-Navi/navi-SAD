@@ -179,14 +179,6 @@ def compute_d_matrix(
                 )
         d_matrix[combo_key] = d_values
 
-    n_computable = sum(1 for hd in d_matrix.values() for d in hd.values() if d is not None)
-    log.info(
-        "d_matrix_computed",
-        n_combos=len(d_matrix),
-        n_heads=num_layers * num_heads,
-        n_computable=n_computable,
-    )
-
     return d_matrix
 
 
@@ -406,14 +398,6 @@ def compute_head_asymmetry(
     mean_head_mean_d = sum(voting_mean_ds) / len(voting_mean_ds) if voting_mean_ds else None
     mean_head_abs_mean_d = (
         sum(abs(d) for d in voting_mean_ds) / len(voting_mean_ds) if voting_mean_ds else None
-    )
-
-    log.info(
-        "head_asymmetry_computed",
-        n_voting=n_negative + n_positive + n_zero,
-        n_absent=n_absent,
-        n_sparse=n_sparse,
-        signed_excess=n_negative - n_positive,
     )
 
     return AsymmetryStatistic(

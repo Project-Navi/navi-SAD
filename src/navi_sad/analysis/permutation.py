@@ -255,6 +255,12 @@ def run_permutation_null(
         num_heads=num_heads,
     )
 
+    log.info(
+        "observed_recurrence_computed",
+        n_heads=num_layers * num_heads,
+        recurring_head_count=observed_stat.recurring_head_count,
+    )
+
     # Observed count at level 7
     observed_at_seven = observed_profile.counts_at_level.get(7, 0)
 
@@ -353,6 +359,22 @@ def run_asymmetry_null(
         num_heads=num_heads,
         min_present_combos=min_present_combos,
         sign_eps=sign_eps,
+    )
+
+    n_computable = sum(1 for hd in observed_d_matrix.values() for d in hd.values() if d is not None)
+    log.info(
+        "observed_asymmetry_computed",
+        n_combos=len(observed_d_matrix),
+        n_heads=num_layers * num_heads,
+        n_computable=n_computable,
+        n_voting=(
+            observed_stat.n_negative_heads
+            + observed_stat.n_positive_heads
+            + observed_stat.n_zero_heads
+        ),
+        n_absent=observed_stat.n_absent_heads,
+        n_sparse=observed_stat.n_sparse_heads,
+        signed_excess=observed_stat.signed_excess,
     )
 
     # Stratification
@@ -471,6 +493,22 @@ def run_paired_asymmetry_null(
         num_heads=num_heads,
         min_present_combos=min_present_combos,
         sign_eps=sign_eps,
+    )
+
+    n_computable = sum(1 for hd in observed_d_matrix.values() for d in hd.values() if d is not None)
+    log.info(
+        "observed_paired_asymmetry_computed",
+        n_combos=len(observed_d_matrix),
+        n_heads=num_layers * num_heads,
+        n_computable=n_computable,
+        n_voting=(
+            observed_stat.n_negative_heads
+            + observed_stat.n_positive_heads
+            + observed_stat.n_zero_heads
+        ),
+        n_absent=observed_stat.n_absent_heads,
+        n_sparse=observed_stat.n_sparse_heads,
+        signed_excess=observed_stat.signed_excess,
     )
 
     # Permutation loop
