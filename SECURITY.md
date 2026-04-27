@@ -3,22 +3,35 @@
 ## Project context
 
 `navi-SAD` is a research harness, not a deployed product. It is intended to
-be run locally by researchers against pinned model and dataset revisions in
-controlled environments. It does not handle production data, accept
-network input, or expose remote-callable surfaces. Threat models that
-apply to public-facing services are largely out of scope.
+be run locally by researchers against pinned model and dataset revisions
+in controlled environments. It does not handle production data, expose
+inbound network services, or accept remote-callable surfaces. It does
+fetch model weights and datasets from HuggingFace at runtime when caches
+are cold; that is an outbound supply-chain dependency rather than an
+inbound attack surface, but it is in scope for vulnerability reports.
+Threat models that apply to public-facing services are largely out of
+scope.
 
 That said, this repo follows responsible security disclosure for any
-vulnerability that affects researchers running the code, the integrity of
-recorded experimental artifacts, or the reproducibility of published gate
-results.
+vulnerability that affects researchers running the code, the integrity
+of recorded experimental artifacts, or the gate-parity invariants on
+which research claims depend.
 
 ## Supported versions
 
 `main` is the only supported branch. Pre-release tags exist for
-reproducibility but receive no backports. Dependency-pinning happens via
-`uv.lock`; the lockfile is the canonical source of truth for what versions
-are actually exercised.
+historical reference but receive no backports.
+
+Reproducibility scope is narrow and not the same thing as "anyone can
+re-run the experiments anywhere": dependency versions are pinned in
+`uv.lock` (the canonical source of truth for exercised versions) and
+model + dataset revisions are pinned in the gate fixtures and pilot
+scripts. Hardware, CUDA toolkit version, OS, and exact run environment
+are not yet captured in machine-consumable form; gate-parity tolerances
+were calibrated on a specific GPU configuration documented per-gate in
+the gate test files. Anyone reproducing gate results must re-validate
+tolerances on their own configuration; gate discipline forbids relaxing
+them in either direction.
 
 | Branch | Supported |
 |---|---|
@@ -73,11 +86,13 @@ vulnerable code path is never invoked in our usage:
 
 - **`transformers <5.0.0rc3`, GHSA-69w3-r845-3855 (medium):** Arbitrary
   code execution in HuggingFace's `Trainer` class. `navi-SAD` does not
-  use `Trainer`; the codebase performs inference only via the
-  forward-replacement adapter at `src/navi_sad/core/adapter.py`, which
-  replaces `model.forward` and never invokes any Trainer code path.
-  The fix is in `5.0.0rc3`, which violates the project's
-  frozen-decision pin (`transformers ~= 4.57`) — the adapter is a
+  use `Trainer`; the codebase performs inference only. The
+  forward-replacement adapter at `src/navi_sad/core/adapter.py` patches
+  each attention module's `forward` method
+  (`attn_module.forward = self._make_capturing_forward(...)` in
+  `MistralAdapter.install`); it does not touch `Trainer` at all. The
+  fix is in `5.0.0rc3`, which violates the project's frozen-decision
+  pin (`transformers ~= 4.57`) — the patched attention forward is a
   verbatim upstream copy from `4.57.x` and any version bump requires
   Gate 0 re-verification before landing. Disposition: tracked,
   dismissed via Dependabot UI as `not_used`. Re-emerges if anyone ever
@@ -95,8 +110,11 @@ vulnerable code path on some new branch), file a private advisory.
 - `attn_implementation="eager"` is enforced; FlashAttention and
   SDPA paths are explicitly rejected by the instrument because they
   bypass the capture insertion points.
-- KV cache is disabled by method definition; cache-on inference is an
-  unverified scope extension.
+- KV cache is disabled in harness entry points by passing
+  `use_cache=False` to `model.generate`; the adapter's patched
+  attention forward still supports `past_key_values` mechanically (so
+  cache-on calls do not crash) but parity mode hard-fails on
+  cache-on usage. Cache-on inference is an unverified scope extension.
 - Dependabot has `transformers` ignored (no auto-PRs) but does NOT
   suppress security alerts for it (correct behavior).
 
