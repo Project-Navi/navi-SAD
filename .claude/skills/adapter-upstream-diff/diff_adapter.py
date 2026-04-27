@@ -8,8 +8,9 @@ Exit codes:
   1 — normalised bodies differ. Expected in the steady state; scan each hunk
       against SKILL.md's "Known deliberate departures" list and treat anything
       unmatched as drift.
-  2 — extraction or import failure (adapter.py structure changed, or
-      transformers is missing / wrong version).
+  2 — version precondition failed (transformers outside the adapter's
+      [_COMPAT_MIN, _COMPAT_MAX) range), or extraction / import failure
+      (adapter.py structure changed, transformers missing).
 
 Usage:
     uv run python .claude/skills/adapter-upstream-diff/diff_adapter.py
@@ -70,8 +71,51 @@ def extract_patched_forward_source(adapter_path: Path) -> str:
     )
 
 
+def check_transformers_version() -> None:
+    """Hard-fail if installed transformers is outside the adapter's compat range.
+
+    Mirrors the runtime guard in ``navi_sad.core.adapter._check_transformers_version``
+    so this helper detects a version-precondition failure BEFORE attempting to
+    diff. Without this check, an out-of-range transformers would still let
+    ``inspect.getsource`` succeed and emit a large exit-1 diff that looks like
+    adapter drift rather than a version mismatch — leading reviewers to draw
+    incorrect gate / audit conclusions.
+
+    Imports the compat constants from the adapter module rather than redefining
+    them so the two stay in lockstep.
+
+    Raises:
+        RuntimeError: if transformers is missing or the installed version is
+            outside ``[_COMPAT_MIN, _COMPAT_MAX)``. The caller in main()
+            converts this to exit code 2.
+    """
+    import transformers
+    from packaging.version import InvalidVersion, Version
+
+    from navi_sad.core.adapter import _COMPAT_MAX, _COMPAT_MIN
+
+    version_str = transformers.__version__
+    try:
+        version = Version(version_str)
+    except InvalidVersion as exc:
+        raise RuntimeError(f"Cannot parse transformers version: {version_str}") from exc
+    if not (Version(_COMPAT_MIN) <= version < Version(_COMPAT_MAX)):
+        raise RuntimeError(
+            f"adapter-upstream-diff requires transformers >={_COMPAT_MIN}, "
+            f"<{_COMPAT_MAX} (matches MistralAdapter compat range), "
+            f"got {version_str}. The patched forward is copied from this "
+            f"version range; running the diff against an incompatible version "
+            f"would surface upstream-evolution noise as apparent drift."
+        )
+
+
 def extract_upstream_forward_source() -> str:
-    """Return the source of upstream MistralAttention.forward."""
+    """Return the source of upstream MistralAttention.forward.
+
+    Caller must invoke ``check_transformers_version()`` before this; otherwise
+    the diff may run against an incompatible upstream and surface unrelated
+    changes as drift.
+    """
     from transformers.models.mistral.modeling_mistral import MistralAttention
 
     return inspect.getsource(MistralAttention.forward)
@@ -147,6 +191,15 @@ def normalise(body: str) -> list[str]:
 
 
 def main() -> int:
+    try:
+        check_transformers_version()
+    except RuntimeError as exc:
+        print(
+            f"[adapter-upstream-diff] version precondition failed: {exc}",
+            file=sys.stderr,
+        )
+        return 2
+
     try:
         patched_source = extract_patched_forward_source(ADAPTER_PATH)
         upstream_source = extract_upstream_forward_source()

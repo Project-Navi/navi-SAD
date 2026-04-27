@@ -71,16 +71,17 @@ If the diff output matches only items 1–6, the adapter is correct. Anything el
 
 `diff_adapter.py`:
 
+- **Checks the installed transformers version first.** Imports `_COMPAT_MIN` / `_COMPAT_MAX` from `core/adapter.py` and exits 2 with a clear message if the installed version is outside that range. Without this gate, an out-of-range transformers would let `inspect.getsource` succeed and emit a large exit-1 diff that looks like adapter drift but is actually upstream evolution noise.
 - Loads the installed `transformers.models.mistral.modeling_mistral` source via `inspect.getsource(MistralAttention.forward)`.
 - Loads `core/adapter.py` and extracts the nested `forward` function (defined inside `MistralAdapter._make_capturing_forward`) via AST.
 - Normalises both sides before diffing:
   - strips the three `SAD INSERTION N` ... `END INSERTION N` blocks
-  - drops decorator lines (upstream's `@deprecate_kwarg`)
+  - drops `@deprecate_kwarg(...)` decorator only (other decorators surface as drift)
   - drops `# type: ignore[...]` suffix comments (patched side)
   - converts `Optional[X]` to `X | None` (upstream uses `typing.Optional`, patched uses PEP 604)
   - drops `**kwargs: Unpack[FlashAttentionKwargs]` annotation
   - normalises `self` → `module` on both sides (the allowed closure substitution)
-  - strips per-line leading / trailing whitespace — logic matters, indentation is enforced by the parser
+  - dedents both bodies to a common column-zero baseline using a body-line-only minimum, so relative indentation is preserved (real control-flow drift like a statement moved out of an if-block surfaces in the diff)
 - Prints a unified diff of what remains. Exits 1 if any diff exists; exit 0 means truly identical after normalisation.
 
 ## References
