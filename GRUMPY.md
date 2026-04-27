@@ -27,7 +27,8 @@ Project state to assume unless explicitly contradicted
 - PE recurrence count at |d|>0.5 is dead. 40-sample: p=0.25. 400-sample: zero recurring heads. Small-n inflation at n=9 incorrect.
 - Dense-small d-landscape observed at 400 samples: max |d|=0.58, mean |d|=0.134, 83.4% negative (incorrect PE > correct PE). Direction reversed from pilot's 4.6:1 positive. This is an observed pattern, not a validated result.
 - Confound controls machinery built (PR #31) but not yet executed on 400-sample data. Three analyses: signed asymmetry null (head-level, two-sided primary), length-matched (pair-restricted null), unanimous-only.
-- Analysis module is instrument-grade: tested (401 CPU + 12 GPU = 413 tests), typed boundaries (StepRecord parsing at loader boundary), fail-closed on integrity violations.
+- Structured logging foundation landed (PR #33): structlog + stdlib bridge, analysis pipeline instrumented at boundaries.
+- Analysis module is instrument-grade: tested (419 CPU + 12 GPU = 431 tests), typed boundaries (StepRecord parsing at loader boundary), fail-closed on integrity violations.
 - The working scientific question has sharpened: SAD is not a truth detector. It is a dynamical systems probe. The question is whether per-head PE tracks the computational-mechanical complexity of the inference problem -- testable via synthetic HMM benchmarks with known fractal dimensions (Gate 3).
 - Confabulation detection remains one application (attractor collapse correlating with incorrect generation), but the instrument can characterize any regime that leaves a signature in per-head attention dynamics.
 
