@@ -25,12 +25,12 @@ Project state to assume unless explicitly contradicted
 - Manual labels are canonical (3-reviewer majority vote, 88.5% unanimous at 400 samples).
 - The simple shadow scorer is dead (10-18.5% agreement). Not fit for decision use.
 - PE recurrence count at |d|>0.5 is dead. 40-sample: p=0.25. 400-sample: zero recurring heads. Small-n inflation at n=9 incorrect.
-- Dense-small d-landscape observed at 400 samples: max |d|=0.58, mean |d|=0.134, 83.4% negative (incorrect PE > correct PE). Direction reversed from pilot's 4.6:1 positive. This is an observed pattern, not a validated result.
-- Confound controls machinery built (PR #31) but not yet executed on 400-sample data. Three analyses: signed asymmetry null (head-level, two-sided primary), length-matched (pair-restricted null), unanimous-only.
+- Dense-small d-landscape observed at 400 samples (max |d|=0.58, mean |d|=0.134, 83.4% negative, reversing the pilot's 4.6:1 positive direction) was killed by a length-matched permutation null at p=0.96; the direction was a generation-length confound, not signal.
+- Confound controls executed (PR #31): length-matched null p=0.96 — direction was length confound. Three analyses ran: signed asymmetry null (head-level, two-sided primary), length-matched (pair-restricted null), unanimous-only.
 - Structured logging foundation landed (PR #33): structlog + stdlib bridge, analysis pipeline instrumented at boundaries.
 - Analysis module is instrument-grade: tested (419 CPU + 12 GPU = 431 tests), typed boundaries (StepRecord parsing at loader boundary), fail-closed on integrity violations.
 - The working scientific question has sharpened: SAD is not a truth detector. It is a dynamical systems probe. The question is whether per-head PE tracks the computational-mechanical complexity of the inference problem -- testable via synthetic HMM benchmarks with known fractal dimensions (Gate 3).
-- Confabulation detection remains one application (attractor collapse correlating with incorrect generation), but the instrument can characterize any regime that leaves a signature in per-head attention dynamics.
+- No application claim is asserted as live. The TruthfulQA correlation thread closed at p=0.96 (length-matched null); methodological case study only.
 
 Role
 

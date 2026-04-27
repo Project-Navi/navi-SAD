@@ -2,7 +2,7 @@
 
 A dynamical systems probe for LLM inference. Runs softmax and linear attention in parallel on the same post-RoPE Q/K/V tensors, measures per-head cosine divergence, and reconstructs the model's internal attractor via delay-coordinate embedding (permutation entropy).
 
-Confabulation detection remains one needle in the token-stack we are looking for, but it is no longer the only one. The instrument is hypothesis-agnostic -- it reconstructs dynamical structure. What you ask about that structure is a separate question.
+navi-SAD is a runtime measurement instrument for transformer inference, not an application. It captures per-head softmax-vs-linear attention divergence as a delay-coordinate embedding of the model's residual-stream dynamics. Whether that embedding carries information about inference regime is an open empirical question. Validation is in progress on synthetic HMM benchmarks (Gate 3); the repository makes no application claims today.
 
 **This is a research harness, not a product. The instrument can lie. Every claim requires evidence.**
 
@@ -12,18 +12,18 @@ SAD captures post-RoPE Q/K/V tensors from inside the model's native attention fo
 
 **Theoretical framing (Takens' embedding):** Each per-head SAD trajectory is treated as a delay-coordinate embedding of the model's internal dynamical state, following Takens' embedding theorem. We are not measuring a signal -- we are reconstructing an attractor. Permutation entropy is not a generic complexity heuristic here; it is load-bearing. Bandt-Pompe ordinal patterns are designed for exactly this: characterizing the ordinal structure of delay-coordinate reconstructions. When the attractor collapses (stereotyped dynamics, low PE), the model's internal state has lost the complex structure that characterizes one inference regime. When the attractor is rich (high PE, diverse ordinal patterns), the dynamics retain a different kind of structure. The per-head SAD trajectory is the observable; the attractor reconstruction is the instrument; PE on that reconstruction is the measurement.
 
-**What the instrument can see:** Any regime that leaves a signature in per-head attention dynamics -- confidence, uncertainty, confabulation, creativity, rote retrieval, domain shifts, phase transitions during long-form generation. The first application is confabulation detection (TruthfulQA, correct vs incorrect attractor geometry), but the instrument does not hard-code that question.
+**What the instrument outputs:** A per-(layer, head) scalar trajectory -- the cosine divergence between softmax and linear attention on the same post-RoPE Q/K/V tensors -- over generation steps. We treat that trajectory as a delay-coordinate observable of the residual-stream state. What can be read off it is an open empirical question.
 
 **Scope limitation:** SAD is currently measured under cache-off conditions (`use_cache=False`), which forces full-prefix recomputation at each generation step. Generalization to cache-on (production) inference is unverified and remains a scope limitation.
 
 ## Research Grounding
 
-The SAD instrument is theoretically motivated and adjacent-literature-grounded, but the attractor-reconstruction claim is not yet directly validated by repository evidence. Gates 0-2 validate the **instrument** (non-interference, parity, stability). Gate 3 tests whether the **reconstructed attractor carries information** -- starting with confabulation-relevant regimes but applicable to any labeled binary partition. The 40-sample pilot (completed) showed that grand-mean SAD does not separate correct from incorrect generations, but per-(layer, head) attractor structure and temporal dynamics remain open candidates.
+Gates 0-2 validate the **instrument** (non-interference, parity, stability). The 40-sample TruthfulQA pilot and the 400-sample replication are now closed methodological case studies; the dense-d direction observed in the pilot did not survive a length-matched permutation null (p=0.96). Gate 3 has been redesigned around synthetic HMM benchmarks with known fractal dimensions.
 
 **Theoretical basis -- softmax/linear capacity gap:**
 Han et al. (2024, arXiv:2412.06590) prove that softmax attention is injective (different queries produce different distributions) while linear attention is not (distinct queries can collapse to identical outputs). This capacity gap is the structural basis for using softmax-linear divergence as a diagnostic. SAD does not claim that divergence directly measures truth -- it measures how much the model relies on its full nonlinear attention capacity versus operating in a regime where the weaker linear mechanism suffices.
 
-**Adjacent empirical motifs:**
+**Related representation-dynamics work (cited for context, not as application claims):**
 - D2HScore (Ding et al., 2025): low dispersion and drift in internal representations characterize hallucinated content.
 - EigenTrack (arXiv:2509.15735, 2025): hallucinated sequences produce flatter, more dispersed attention spectra closer to the noise baseline.
 - Neural Uncertainty Principle (arXiv:2603.19562, 2026): formalizes that weak prompt-gradient coupling indicates hallucination risk.
@@ -31,13 +31,13 @@ Han et al. (2024, arXiv:2412.06590) prove that softmax attention is injective (d
 
 **What is novel:** No published method runs two attention mechanisms in parallel on the same frozen weights as a dynamical systems probe. SAD combines known ingredients (linear attention, cosine divergence, delay-coordinate embedding via ordinal patterns) in a new configuration. The Takens framing -- treating per-head SAD as an attractor reconstruction rather than a scalar diagnostic -- is the theoretical contribution.
 
-**What is not yet proven:** That the reconstructed attractors carry information about inference regimes rather than reflecting other sources of variation (prompt complexity, sequence length, topic domain). The 40-sample pilot showed the grand-mean signal washes out, but per-(layer, head) PE on first-differenced trajectories shows structural signal that survives across transforms. The open question is whether this structure corresponds to the computational-mechanical complexity of the inference problem -- specifically, whether per-head PE tracks the fractal dimension of the belief state attractor predicted by Shai et al. (NeurIPS 2024). Gate 3 tests this with synthetic HMM benchmarks where ground-truth fractal dimensions are known.
+**What is not yet proven:** That the reconstructed attractors carry information about inference regimes rather than reflecting other sources of variation (prompt complexity, sequence length, topic domain). Both the 40-sample pilot and the 400-sample replication are closed: the directional asymmetry observed in the pilot did not survive length-matched permutation testing (p=0.96). Gate 3 tests the central instrument-validation question -- whether per-head PE tracks the fractal dimension of the belief state attractor predicted by Shai et al. (NeurIPS 2024) -- with synthetic HMM benchmarks where ground-truth fractal dimensions are known.
 
 ## Current State
 
 - **Milestones A + B:** Complete. Core math, types, I/O, mock hooks, temporal analysis.
 - **Milestone C:** Complete. Real instrumentation proven on Mistral-7B.
-- **Milestone D (Gates 2-3):** Gate 2 passes. Gate 3 pilot complete (40 samples, 3-reviewer majority-vote labels). Key findings: grand-mean SAD does not separate groups; per-head PE on first-differenced trajectories shows structural signal (338/1024 heads with |d|>0.5 in 3+ mode/segment combos, 4.6:1 directional asymmetry). Full Gate 3 redesigned around synthetic HMM benchmarks with known fractal dimensions (see below).
+- **Milestone D (Gates 2-3):** Gate 2 passes. 40-sample pilot and 400-sample replication closed as case studies; recurrence count statistic dead, dense-d direction killed by length-matched null. Full Gate 3 redesigned around synthetic HMM benchmarks with known fractal dimensions (see below).
 
 249 tests (237 CPU + 12 GPU). CI enforces lint, format, typecheck, and test on every PR.
 
@@ -54,7 +54,7 @@ All validation performed on Mistral-7B-Instruct-v0.2 (fp16, eager attention, rev
 ## Scope (Phase 1)
 
 - Model: Mistral-7B only (other families earn entry after Gate 1)
-- Benchmark: Synthetic HMM family with known fractal dimensions (Gate 3). TruthfulQA as downstream application after instrument validation.
+- Benchmark: Synthetic HMM family with known fractal dimensions (Gate 3). TruthfulQA work is closed as a methodological case study; no further application work is committed.
 - No baselines until signal validated across architectures
 
 ## Installation
@@ -128,7 +128,7 @@ tests/
 
 | Gate | What | Status |
 |------|------|--------|
-| 3 (pilot) | Per-head PE structure on TruthfulQA (40 samples) | **Complete** — structural signal found, grand-mean dead |
+| 3 (pilot) | Per-head PE structure on TruthfulQA (40 + 400 samples) | **Closed case study** — recurrence count dead; dense-d direction killed by length-matched null at 400 samples |
 | 3 (full) | Rank correlation of per-head PE with known fractal dimension across synthetic HMM family | Planned |
 
 See [ROADMAP.md](ROADMAP.md) for the full research plan.

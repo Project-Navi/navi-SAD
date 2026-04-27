@@ -4,13 +4,13 @@
 
 Spectral Attention Divergence (SAD): a dynamical systems probe for LLM inference. Runs softmax and linear attention in parallel on the same weights, measures per-head cosine divergence, and reconstructs the model's internal attractor via delay-coordinate embedding (permutation entropy).
 
-**Takens' embedding framing:** Each per-head SAD trajectory is a delay-coordinate embedding of the model's internal dynamical state. We are not measuring a signal — we are reconstructing an attractor. PE is load-bearing: Bandt-Pompe ordinal patterns are designed for delay-coordinate reconstructions. The instrument is hypothesis-agnostic — it reconstructs dynamical structure. Confabulation detection remains one application (attractor collapse correlating with incorrect generation), but the instrument can characterize any regime that leaves a signature in per-head attention dynamics.
+**Takens' embedding framing:** Each per-head SAD trajectory is a delay-coordinate embedding of the model's internal dynamical state. We are not measuring a signal — we are reconstructing an attractor. PE is load-bearing: Bandt-Pompe ordinal patterns are designed for delay-coordinate reconstructions. The instrument is hypothesis-agnostic — it captures dynamical structure. Whether that structure carries information about inference regime is the question Gate 3 is designed to answer (synthetic HMM benchmarks with known fractal dimensions). No present-tense application claims — including confabulation, hallucination, truthfulness, or correctness detection — are made by this repository.
 
 **This is a research harness, not a product. The instrument can lie. Every claim requires evidence.**
 
 ## Current State (2026-04-27)
 
-Milestone C complete. Gates 0, 1, 2 pass on Mistral-7B. Gate 3 pilot complete (40 samples) + 400-sample replication run. Analysis module built (PRs #28, #29, #32). Confound controls built (PR #31). Structured logging foundation landed (structlog + stdlib bridge, analysis pipeline instrumented). PE recurrence null run — count statistic dead at |d|>0.5. Dense-small d-landscape observed (mean |d|=0.134, 83.4% negative); confound controls running on 400-sample data (analysis #1 observed signed_excess=976/1024 heads negative; permutation null in progress). Theory direction shifting: PE → full Rényi-complexity-causality fingerprint per Gisande & Montani (2024); `reccs-formalization` Lean repo initialized (private/local) to formalize the operational scoring foundation. 419 CPU + 12 GPU = 431 tests. See [ROADMAP.md](ROADMAP.md) for research priorities. Maintenance PRs since last update: #33 structlog, #35 mypy 1.20, #38 actions group, #40 claude-code automations, #41 test-logging fixture, #42 cleanup + dependabot guards, #43 setup-uv bump, #44 security bumps (cleared 14/15 dependabot alerts; transformers alert remains, dismissed as not-exploitable since `Trainer` class is never invoked); #39 closed (transformers 6.0 frozen-decision violation).
+Milestone C complete. Gates 0, 1, 2 pass on Mistral-7B. Gate 3 pilot and 400-sample replication closed as methodological case studies. Analysis module built (PRs #28, #29, #32). Confound controls built and executed (PR #31). Structured logging foundation landed (structlog + stdlib bridge, analysis pipeline instrumented). PE recurrence null run — count statistic dead at |d|>0.5. TruthfulQA case study closed: 400-sample length-matched permutation null returned p=0.96; the dense-d direction was a generation-length confound, not signal. Theory direction shifting: PE → full Rényi-complexity-causality fingerprint per Gisande & Montani (2024); `reccs-formalization` Lean repo initialized (private/local) to formalize the operational scoring foundation. 419 CPU + 12 GPU = 431 tests. See [ROADMAP.md](ROADMAP.md) for research priorities. Maintenance PRs since last update: #33 structlog, #35 mypy 1.20, #38 actions group, #40 claude-code automations, #41 test-logging fixture, #42 cleanup + dependabot guards, #43 setup-uv bump, #44 security bumps (cleared 14/15 dependabot alerts; transformers alert remains, dismissed as not-exploitable since `Trainer` class is never invoked); #39 closed (transformers 6.0 frozen-decision violation).
 
 ### Pilot findings (characterization, not evidential)
 
@@ -18,10 +18,10 @@ The 40-sample pilot falsified the naive hypothesis. The 400-sample replication k
 
 - **Grand-mean SAD does not separate groups.** 0.006 gap on ~0.30 baseline. Dead.
 - **Per-head PE recurrence at |d|>0.5: dead.** 40-sample pilot found 342/1024 heads with |d|>0.5 in 3+ combos. Permutation null: p=0.25 (not significant). 400-sample replication: zero recurring heads. The count was small-n inflation at n=9 incorrect.
-- **Dense-small d-landscape observed (unvalidated).** At 400 samples (282 correct, 68 incorrect): max |d|=0.58, mean |d|=0.134, 83.4% negative d (incorrect PE > correct PE). Direction reversed from pilot's 4.6:1 positive. This is an observed pattern, not a validated result — no null test for the directional asymmetry has been run. Confounds (generation length, label noise) are uncontrolled.
+- **Dense-small d-landscape: killed by length-matched null.** At 400 samples (282 correct, 68 incorrect) the observed pattern was max |d|=0.58, mean |d|=0.134, 83.4% negative d (incorrect PE > correct PE), reversing the pilot's 4.6:1 positive direction. Length-matched permutation null subsequently returned p=0.96; the direction was a generation-length confound, not signal.
 - **Shadow scorer dead.** 10% agreement (40-sample), 18.5% agreement (400-sample). Manual labels are canonical.
 
-**Hypothesis revised:** SAD is not a truth detector. It is a dynamical systems probe that reconstructs per-head attractor structure. The theoretical anchor is Shai et al. (NeurIPS 2024, arXiv:2405.15943): transformers construct belief state geometry in their residual streams, and that geometry can be genuinely fractal for non-unifilar inference processes. Gate 3 tests whether per-head PE tracks the computational-mechanical complexity of the inference problem, using synthetic HMM benchmarks with known fractal dimensions.
+**Framing:** SAD is a runtime measurement instrument; the repository asserts no application claims. The theoretical anchor is Shai et al. (NeurIPS 2024, arXiv:2405.15943): transformers construct belief state geometry in their residual streams, and that geometry can be genuinely fractal for non-unifilar inference processes. Gate 3 tests whether per-head PE tracks the computational-mechanical complexity of the inference problem, using synthetic HMM benchmarks with known fractal dimensions. The TruthfulQA application thread is closed.
 
 ### What exists and works
 
@@ -76,15 +76,12 @@ The 40-sample pilot falsified the naive hypothesis. The 400-sample replication k
 ### What does NOT exist yet
 
 **Next immediate:**
-1. Run confound controls on 400-sample data (`scripts/pe_confound_controls.py`). Code built in PR #31, not yet executed.
-2. Layer-stratified PE profiles (per-layer correct/incorrect separation, L0-L31) — only if signal survives confound controls
-3. D-sweep on 400-sample data (D=3..5 feasible with longer sequences)
-4. Observable genericity argument (justify per-head SAD as generic observable of belief state)
-5. Rényi fingerprint (port Rényi entropy parameter sweeps from production C++ kernel)
+1. Layer-stratified PE profiles (per-layer L0-L31) — deferred to post-Gate-3, applied to HMM-benchmark trajectories rather than TruthfulQA
+2. Observable genericity argument (justify per-head SAD as generic observable of belief state)
+3. Rényi fingerprint (port Rényi entropy parameter sweeps from production C++ kernel)
 
 **Milestone D (remaining):**
 - Gate 3: synthetic HMM benchmark — rank correlation of per-head PE with known fractal dimension across a family of generating processes with known unifilarity properties
-- TruthfulQA revisited post-validation as one regime partition among many (currently: stress test, not calibration gate)
 - Gate 6: Overhead measurement (informational, not blocking)
 
 **Completed (moved from "not yet"):**
@@ -93,7 +90,7 @@ The 40-sample pilot falsified the naive hypothesis. The 400-sample replication k
 - PerStepDict boundary type → StepRecord parsing (PR #29)
 - Permutation null test (PR #28): ran on 40-sample and 400-sample data
 - Stats module extraction (PR #28): Cohen's d moved to stats/effect_size.py
-- Confound controls machinery (PR #31): signed asymmetry null, length-matched analysis, unanimous-only analysis, matching.py, selection.py, pe_confound_controls.py CLI, baseline deviation diagnostic
+- Confound controls machinery (PR #31): signed asymmetry null, length-matched analysis, unanimous-only analysis, matching.py, selection.py, pe_confound_controls.py CLI, baseline deviation diagnostic. Executed on 400-sample data; length-matched null p=0.96 — TruthfulQA case study closed (no application claim).
 
 **Deferred (from IA audit, post-pilot):**
 - Adapter AST fingerprint check (IA F-04)
@@ -132,7 +129,7 @@ The 40-sample pilot falsified the naive hypothesis. The 400-sample replication k
 | Capture boundary | **Post-RoPE Q/K/V** (preferred), hidden-state fallback is Tier C |
 | Temporal features | **PE per-(layer, head) on first-differenced SAD trajectories (primary) + raw finite differences (supplementary) + Rényi fingerprint (planned)**. PE on pooled grand means is dead. |
 | Registry scope | **Mistral only** until cross-family gates pass |
-| Benchmarks | **Synthetic HMM sequences** for Gate 3 (rank correlation with known fractal dimension). TruthfulQA deferred to post-validation. |
+| Benchmarks | **Synthetic HMM sequences** for Gate 3 (rank correlation with known fractal dimension). TruthfulQA: closed methodological case study (not on roadmap). |
 | Baselines | **None** until signal validated across architectures |
 | Package manager | **uv** exclusively. No pip fallback. Lockfile committed. |
 | Transformers | **~=4.57** pinned. Forward-replacement adapter is version-coupled. |
