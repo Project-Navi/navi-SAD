@@ -102,7 +102,7 @@ def test_extract_leading_span(text: str, expected_span: str, expected_reason: st
 
 
 class TestScoreSample:
-    """Tests for the shadow scorer (truthfulqa_exact_v1)."""
+    """Tests for the TruthfulQA case-study shadow scorer (truthfulqa_exact_v1)."""
 
     def test_exact_correct(self) -> None:
         label, mc, mi = score_sample("Paris", ["Paris"], ["London"])

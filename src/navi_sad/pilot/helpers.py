@@ -1,8 +1,8 @@
-"""Pure helpers for Gate 3 pilot.
+"""Pure helpers for the Gate 3 TruthfulQA case study (closed).
 
 Extraction, scoring, scalar computation, and alignment for the
-40-sample TruthfulQA pilot. Pilot-quality utilities, not core
-infrastructure.
+40-sample and 400-sample TruthfulQA runs. Case-study-scoped utilities,
+not core instrument infrastructure.
 """
 
 from __future__ import annotations
@@ -94,9 +94,10 @@ def score_sample(
     correct_answers: list[str],
     incorrect_answers: list[str],
 ) -> tuple[str, list[str], list[str]]:
-    """Shadow scorer for TruthfulQA pilot (truthfulqa_exact_v1).
+    """Shadow scorer for the TruthfulQA case study (truthfulqa_exact_v1).
 
-    Takes raw leading span, normalizes for matching only.
+    Exact-match labeller used to seed reviewer queues; not an instrument
+    output. Takes raw leading span, normalizes for matching only.
     Returns (label, matched_correct, matched_incorrect) where
     matched lists contain original (unnormalized) candidates.
     """
