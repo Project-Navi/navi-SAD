@@ -40,13 +40,13 @@ Sweep embedding dimension D from 3 to 4 on the 40-sample pilot records. Under th
 
 **Why it matters:** If PE changes substantially between D=3 and D=4, the embedding dimension matters and D=3 may be undersampling the attractor. If PE stabilizes, D=3 is sufficient and the pilot findings hold. This is a direct test of whether the delay-coordinate reconstruction has enough dimensions to capture the attractor's topology.
 
-### Priority 2: Layer-stratified PE profiles
+### Priority 2: Layer-stratified PE profiles (HMM benchmark)
 
-*No GPU needed. Existing artifacts.*
+*Deferred to post-Gate-3.*
 
-Plot per-layer PE separation (correct vs incorrect) from L0 to L31. Shai et al. ([arXiv:2405.15943](https://arxiv.org/abs/2405.15943)) find that belief state geometry is "represented in the final residual stream or distributed across the residual streams of multiple layers." The companion work (Piotrowski et al., NeurIPS 2024) analyzes the mechanism of this distribution. If later layers have more fully constructed geometry, correct/incorrect PE separation should grow with depth.
+Per-layer PE structure from L0 to L31, applied to the synthetic HMM benchmark trajectories (Priority 8) rather than the closed TruthfulQA case study. Shai et al. ([arXiv:2405.15943](https://arxiv.org/abs/2405.15943)) find that belief state geometry is "represented in the final residual stream or distributed across the residual streams of multiple layers." The companion work (Piotrowski et al., NeurIPS 2024) analyzes the mechanism of this distribution. If later layers have more fully constructed geometry, the rank correlation between per-layer PE and known fractal dimension should grow with depth.
 
-**Why it matters:** If separation grows from early to late layers, it is convergent evidence that SAD observes belief state geometry being constructed layer by layer. If separation concentrates in L15--21, it matches both the pilot's recurring-head zone and the progressive construction prediction. If separation is flat, the progressive construction story does not apply to this observable.
+**Why it matters:** If correlation grows from early to late layers, it is convergent evidence that SAD observes belief state geometry being constructed layer by layer. If correlation concentrates in L15--21, it matches the progressive construction prediction. If it is flat, the progressive construction story does not apply to this observable. The pilot-data layer profile is no longer informative: the directional asymmetry that would have motivated it did not survive a length-matched permutation null (p=0.96).
 
 ### Priority 3: Observable genericity argument
 
@@ -104,17 +104,11 @@ Stratified permutation null on the recurrence statistic with eligibility account
 
 *Planned. Only after Gate 3 passes.*
 
-Apply the validated instrument to controlled natural-language tasks: nested syntactic dependencies, multi-step reasoning with hidden variables, ambiguous pronoun resolution. These are designed to vary the complexity of the inference problem while staying within natural language, bridging from synthetic HMMs to realistic use cases.
-
-### Priority 11: TruthfulQA revisited
-
-*Planned. Only after Gate 3 passes.*
-
-Reframe the original pilot data with the validated hypothesis. Not correctness separation, but belief-state complexity characterization. The instrument measures attractor geometry; TruthfulQA provides one regime partition among many.
+Once the instrument is validated on known synthetic processes, it may be applied to controlled natural-language regimes that vary the complexity of the inference problem while staying within natural language. No specific datasets or tasks are committed today; the TruthfulQA case study is closed and is not being re-entered.
 
 ## Theoretical integration
 
-### Priority 12: Three-repo unification
+### Priority 11: Three-repo unification
 
 *Theoretical work. Ongoing.*
 

@@ -10,7 +10,7 @@
 | Capture boundary | **Post-RoPE Q/K/V** | Preferred; hidden-state fallback is Tier C |
 | Temporal features | **[PE](../theory/takens-embedding.md) per-(layer, head) on first-differenced SAD trajectories (primary) + raw finite differences (supplementary) + [Renyi fingerprint](../research/open-problems.md) (planned)** | PE on pooled grand means is dead; per-head is alive |
 | Registry scope | **Mistral only** | Until cross-family gates pass |
-| Benchmarks | **Synthetic HMM sequences** | [Gate 3](../instrument/gate-discipline.md); TruthfulQA deferred to post-validation |
+| Benchmarks | **Synthetic HMM sequences** | [Gate 3](../instrument/gate-discipline.md); TruthfulQA: closed methodological case study (not on roadmap) |
 | Baselines | **None** | Until signal validated across architectures |
 | Package manager | **uv** | No pip fallback; lockfile committed |
 | Transformers | **~=4.57 pinned** | Forward-replacement adapter is version-coupled |

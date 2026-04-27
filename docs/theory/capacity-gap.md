@@ -94,11 +94,11 @@ The capacity gap result is a structural property of the attention mechanisms. It
 
 **The divergence is a measurement, not a diagnosis.** SAD measures the gap. What you conclude from the gap depends on additional analysis --- the [per-head PE structure](../research/pilot-findings.md), the layer and head identity, the comparison to [known dynamical baselines](../research/roadmap.md). The capacity gap result tells you *why* the measurement is informative; it does not tell you what any particular value means.
 
-The [pilot findings](../research/pilot-findings.md) show that the interesting signal is not in the divergence values themselves (grand-mean SAD does not separate groups), but in the *temporal complexity* of the divergence trajectories (per-head PE on first-differenced SAD). The capacity gap explains why the trajectories carry information: they reflect time-varying demands on the attention mechanism's nonlinear capacity.
+The [pilot case study](../research/pilot-findings.md) is closed: grand-mean SAD did not separate groups, and the per-head PE directional asymmetry on first-differenced SAD did not survive a length-matched permutation null (p=0.96 at 400 samples). The capacity gap is the structural reason such trajectories *could* carry information about time-varying demands on the attention mechanism's nonlinear capacity. Whether they actually do is the open empirical question that [Gate 3](../instrument/gate-discipline.md) is designed to answer on synthetic processes with known dynamical structure.
 
 ---
 
-Note: the formulation above omits the scaling factor \( \sqrt{d_k} \) from the standard softmax presentation (Vaswani et al., 2017). The scaling does not affect the injectivity argument. The ELU+1 feature map \( \phi(x) = \text{elu}(x) + 1 \) used in the navi-SAD instrument is the specific choice introduced by Katharopoulos et al. (2020); the normalizer \( z = \sum_j \phi(K_j) \) grows linearly with sequence length, which is the source of the [position confound](../research/pilot-findings.md#position-confound-confirmed-and-addressed) in SAD trajectories.
+Note: the formulation above omits the scaling factor \( \sqrt{d_k} \) from the standard softmax presentation (Vaswani et al., 2017). The scaling does not affect the injectivity argument. The ELU+1 feature map \( \phi(x) = \text{elu}(x) + 1 \) used in the navi-SAD instrument is the specific choice introduced by Katharopoulos et al. (2020); the normalizer \( z = \sum_j \phi(K_j) \) grows linearly with sequence length, which is the source of the [position confound](../research/pilot-findings.md#position-confound) in SAD trajectories.
 
 **References**
 

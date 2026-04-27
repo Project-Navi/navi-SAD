@@ -89,9 +89,9 @@ The model's internal state during generation is high-dimensional and unobservabl
 
 Under the Takens framing, this scalar cosine divergence is the *observation function* \( h \), and the generation steps are the discrete dynamics \( \varphi \). The delay vectors formed from consecutive divergence values reconstruct the attractor of the dynamical process governing that head's attention behavior. PE on those delay vectors measures the *complexity of the reconstructed attractor* --- how many distinct temporal patterns the head visits during generation.
 
-The first-differencing step removes the [position confound](../research/pilot-findings.md#position-confound-confirmed-and-addressed) (SAD deltas climb mechanically with prefix length due to the linear attention denominator). PE on the first-differenced trajectory measures the complexity of how the divergence *changes*, not its level.
+The first-differencing step removes the [position confound](../research/pilot-findings.md#position-confound) (SAD deltas climb mechanically with prefix length due to the linear attention denominator). PE on the first-differenced trajectory measures the complexity of how the divergence *changes*, not its level.
 
-This is what the pilot measured. The result --- [338/1024 heads with |Cohen's d| > 0.5](../research/pilot-findings.md#per-head-pe-on-first-differenced-sad-is-the-strongest-signal), correct generations showing more complex dynamics than incorrect --- is consistent with the Takens framing but does not prove it. [Gate 3](../instrument/gate-discipline.md) is designed to test whether per-head PE actually tracks attractor complexity using synthetic processes with known dynamical structure.
+This is the framing the pilot operated under. The 40-sample TruthfulQA recurrence count and the 400-sample directional asymmetry have both been killed under permutation testing (the latter at p=0.96 under a length-matched null), so the [pilot case study](../research/pilot-findings.md) is closed and is no longer evidence for the Takens framing on natural-language data. [Gate 3](../instrument/gate-discipline.md) is the actual test: whether per-head PE tracks attractor complexity on synthetic processes with known dynamical structure.
 
 ## Belief state geometry (Shai et al., [arXiv:2405.15943](https://arxiv.org/abs/2405.15943))
 

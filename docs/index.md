@@ -30,7 +30,7 @@ Runs softmax and linear attention in parallel on the same frozen weights, measur
 
 ## What's New
 
-**2026-03-25** --- [Pilot findings published](research/pilot-findings.md). Grand mean dead. Per-head permutation entropy (PE) alive. Gate 3 redesigned.
+**2026-03-25** --- [Pilot findings published](research/pilot-findings.md). Grand-mean and per-head PE asymmetry both falsified under length-matched null. Gate 3 redesigned around synthetic HMMs.
 
 **2026-03-24** --- [Gate 2 passes](instrument/gate-2.md). 50 consecutive generations, zero VRAM creep.
 
