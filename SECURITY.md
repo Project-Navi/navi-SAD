@@ -22,16 +22,17 @@ which research claims depend.
 `main` is the only supported branch. Pre-release tags exist for
 historical reference but receive no backports.
 
-Reproducibility scope is narrow and not the same thing as "anyone can
-re-run the experiments anywhere": dependency versions are pinned in
-`uv.lock` (the canonical source of truth for exercised versions) and
-model + dataset revisions are pinned in the gate fixtures and pilot
-scripts. Hardware, CUDA toolkit version, OS, and exact run environment
-are not yet captured in machine-consumable form; gate-parity tolerances
-were calibrated on a specific GPU configuration documented per-gate in
-the gate test files. Anyone reproducing gate results must re-validate
-tolerances on their own configuration; gate discipline forbids relaxing
-them in either direction.
+What is pinned: dependency versions in `uv.lock`; model revision and
+dataset revision in `tests/gates/conftest.py` and
+`scripts/pilot_gate3.py`. What is **not** pinned or captured anywhere
+machine-consumable: hardware, CUDA toolkit version, OS, or full run
+environment. Gate-parity tolerances themselves are frozen in code
+(`tests/gates/test_gate1_parity.py` notes the calibration date; Gate 2
+uses fixed thresholds not derived from any environment) but the
+hardware they were calibrated on is not formally recorded. This repo
+does not currently make end-to-end reproducibility claims; it makes
+narrower internal claims about gate discipline that hold against the
+pinned artifacts on the original calibration setup.
 
 | Branch | Supported |
 |---|---|
