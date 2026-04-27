@@ -14,6 +14,10 @@ updates:
     ignore:
       - dependency-name: "torch*"
         update-types: ["version-update:semver-major"]
+      # transformers: forward-replacement adapter is verbatim-coupled to ~=4.57.
+      # Even minor bumps can break Gate 0; manual upgrades only after re-validation.
+      # See PR #39 (closed) for the precedent.
+      - dependency-name: "transformers"
 
   - package-ecosystem: github-actions
     directory: "/"
