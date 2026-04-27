@@ -39,7 +39,7 @@ Han et al. (2024, arXiv:2412.06590) prove that softmax attention is injective (d
 - **Milestone C:** Complete. Real instrumentation proven on Mistral-7B.
 - **Milestone D (Gates 2-3):** Gate 2 passes. 40-sample pilot and 400-sample replication closed as case studies; recurrence count statistic dead, dense-d direction killed by length-matched null. Full Gate 3 redesigned around synthetic HMM benchmarks with known fractal dimensions (see below).
 
-249 tests (237 CPU + 12 GPU). CI enforces lint, format, typecheck, and test on every PR.
+453 tests (440 CPU + 13 GPU). CI enforces lint, format, typecheck, and test on every PR.
 
 ### Instrument Validation Summary
 

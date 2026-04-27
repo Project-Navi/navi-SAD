@@ -28,7 +28,7 @@ Project state to assume unless explicitly contradicted
 - Dense-small d-landscape observed at 400 samples (max |d|=0.58, mean |d|=0.134, 83.4% negative, reversing the pilot's 4.6:1 positive direction) was killed by a length-matched permutation null at p=0.96; the direction was a generation-length confound, not signal.
 - Confound controls executed (PR #31): length-matched null p=0.96 — direction was length confound. Three analyses ran: signed asymmetry null (head-level, two-sided primary), length-matched (pair-restricted null), unanimous-only.
 - Structured logging foundation landed (PR #33): structlog + stdlib bridge, analysis pipeline instrumented at boundaries.
-- Analysis module is instrument-grade: tested (419 CPU + 12 GPU = 431 tests), typed boundaries (StepRecord parsing at loader boundary), fail-closed on integrity violations.
+- Analysis module is instrument-grade: tested (440 CPU + 13 GPU = 453 tests), typed boundaries (StepRecord parsing at loader boundary), fail-closed on integrity violations.
 - The working scientific question has sharpened: SAD is not a truth detector. It is a dynamical systems probe. The question is whether per-head PE tracks the computational-mechanical complexity of the inference problem -- testable via synthetic HMM benchmarks with known fractal dimensions (Gate 3).
 - No application claim is asserted as live. The TruthfulQA correlation thread closed at p=0.96 (length-matched null); methodological case study only.
 
