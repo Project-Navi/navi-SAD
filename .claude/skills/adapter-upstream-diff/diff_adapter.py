@@ -35,7 +35,13 @@ INSERTION_BLOCK_RE = re.compile(
 )
 SELF_RE = re.compile(r"\bself\b")
 TYPE_IGNORE_RE = re.compile(r"[ \t]*#[ \t]*type:[ \t]*ignore(?:\[[^\]]+\])?")
-DECORATOR_RE = re.compile(r"^[ \t]*@[A-Za-z_][\w.]*.*\n", re.MULTILINE)
+# Match @deprecate_kwarg(...) only — single-line or multi-line argument list.
+# Other upstream decorators are NOT stripped, so newly introduced decorators
+# (a real change in upstream behaviour) will appear in the diff as drift.
+DEPRECATE_KWARG_RE = re.compile(
+    r"^[ \t]*@deprecate_kwarg\b\([^)]*\)\s*\n",
+    re.MULTILINE | re.DOTALL,
+)
 OPTIONAL_RE = re.compile(r"Optional\[([^\]]+)\]")
 
 
@@ -71,33 +77,73 @@ def extract_upstream_forward_source() -> str:
     return inspect.getsource(MistralAttention.forward)
 
 
+def _dedent_body(text: str) -> str:
+    """Dedent a function source so the body sits at column zero.
+
+    Used in place of textwrap.dedent because ``ast.get_source_segment`` for a
+    nested function returns the ``def`` header line with its leading whitespace
+    trimmed, while body lines retain their original (deeper) indent. This
+    produces a misleading ``min_indent`` of 0 if computed naively. We instead
+    compute the baseline from non-blank body lines (everything after the def
+    header) and dedent every line by that much.
+
+    Lines shallower than the baseline (typically just the def header itself)
+    are left-stripped. This brings upstream (def at col 4, body at col 8) and
+    patched (def at col 0, body at col 12) into a common shape — both have
+    def at column 0 and the outer body at column 0 — while preserving relative
+    indentation inside the body. Real drift like a statement moved out of an
+    ``if`` block is therefore still visible in the diff.
+    """
+    lines = text.splitlines()
+    def_idx = next(
+        (i for i, line in enumerate(lines) if line.lstrip().startswith("def ")),
+        -1,
+    )
+    body_candidates = lines[def_idx + 1 :] if def_idx >= 0 else lines
+    body_non_blank = [line for line in body_candidates if line.strip()]
+    if not body_non_blank:
+        return text
+    min_indent = min(len(line) - len(line.lstrip()) for line in body_non_blank)
+
+    out: list[str] = []
+    for line in lines:
+        if not line.strip():
+            out.append("")
+        elif line.startswith(" " * min_indent):
+            out.append(line[min_indent:].rstrip())
+        else:
+            out.append(line.lstrip().rstrip())
+    return "\n".join(out)
+
+
 def normalise(body: str) -> list[str]:
     """Normalise a forward body for comparison.
 
     Transforms applied in order:
       * Remove SAD INSERTION N .. END INSERTION N blocks
-      * Drop decorator lines (e.g. @deprecate_kwarg) — upstream only, safe both sides
+      * Drop ``@deprecate_kwarg(...)`` decorator (upstream only, single- or
+        multi-line). Other decorators are NOT stripped — newly introduced
+        upstream decorators will appear as drift.
       * Drop ``# type: ignore[...]`` suffix comments (patched side only)
       * Convert ``Optional[X]`` -> ``X | None`` (upstream typing.Optional vs PEP 604)
       * Drop ``Unpack[FlashAttentionKwargs]`` annotation on ``**kwargs``
       * Substitute ``self`` -> ``module`` on both sides (closure capture)
-      * Strip leading and trailing whitespace from every line
+      * Dedent both bodies to a shared column-zero baseline. Relative
+        indentation is preserved so structural drift (e.g. a statement moved
+        out of an if-block) still surfaces in the diff.
       * Drop blank lines
 
     After normalisation, remaining diffs are either (a) genuine drift, or
     (b) one of the known deliberate departures documented in SKILL.md.
     """
     stripped = INSERTION_BLOCK_RE.sub("", body)
-    stripped = DECORATOR_RE.sub("", stripped)
+    stripped = DEPRECATE_KWARG_RE.sub("", stripped)
     stripped = TYPE_IGNORE_RE.sub("", stripped)
     stripped = OPTIONAL_RE.sub(lambda m: f"{m.group(1)} | None", stripped)
     stripped = stripped.replace("**kwargs: Unpack[FlashAttentionKwargs]", "**kwargs")
     stripped = SELF_RE.sub("module", stripped)
-    # Strip all leading/trailing whitespace per line. The Python parser already
-    # enforces structural correctness, so any real indentation change will also
-    # change the logical content (a missing if/else header line will show).
-    # Dropping whitespace here focuses the diff on logical changes.
-    return [line.strip() for line in stripped.splitlines() if line.strip()]
+    stripped = _dedent_body(stripped)
+    return [line for line in stripped.splitlines() if line.strip()]
 
 
 def main() -> int:
