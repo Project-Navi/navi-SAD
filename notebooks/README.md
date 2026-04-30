@@ -5,11 +5,20 @@ Exploratory Jupyter notebooks. Not part of the test suite; not run in CI.
 ## Setup
 
 The notebook tooling lives in the `notebook` extra in `pyproject.toml`
-(`jupyterlab`, `ipykernel`, `ordpy`, `ipywidgets`). To install:
+(`jupyterlab`, `ipykernel`, `ordpy`, `ipywidgets`, `seaborn`). The
+demo notebook also imports `pandas` and `matplotlib`, which live in
+the `analysis` extra (alongside `scipy` and `scikit-learn`). To
+install both:
 
 ```bash
-uv sync --extra notebook
+uv sync --extra notebook --extra analysis
 ```
+
+`uv` does not install optional extras unless explicitly requested
+([uv sync docs](https://docs.astral.sh/uv/concepts/projects/sync/)),
+so a clean environment that only passes `--extra notebook` will
+fail on `import pandas` / `import matplotlib`. Both extras are
+required.
 
 This adds the deps to `.venv` and registers a project-local kernel at
 `.venv/share/jupyter/kernels/python3` — the kernelspec travels with the
@@ -18,7 +27,7 @@ venv, so the setup is reproducible per `uv.lock`.
 ## Launching JupyterLab
 
 ```bash
-uv run --extra notebook jupyter lab --no-browser --ip=127.0.0.1
+uv run --extra notebook --extra analysis jupyter lab --no-browser --ip=127.0.0.1
 ```
 
 JupyterLab prints a URL with a session token (e.g.
@@ -34,7 +43,7 @@ That kernel uses `.venv/bin/python` from this project, so all of
 navi-SAD's locked deps (torch, transformers, numpy, scipy, ordpy,
 ipywidgets, etc.) are importable. There is no separate user-level
 kernel registration step — the kernel ships with the venv when you
-`uv sync --extra notebook`.
+`uv sync --extra notebook --extra analysis`.
 
 If you see other kernels in the picker (e.g. from older user-level
 `ipykernel install --user --name foo` calls), ignore them. The
