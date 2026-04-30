@@ -44,7 +44,7 @@ notebook = [
 ]
 
 # To install all optional groups:
-#   uv sync --extra eval --extra analysis --extra dev
+#   uv sync --extra eval --extra analysis --extra dev --extra notebook
 
 [tool.setuptools.packages.find]
 where = ["src"]
