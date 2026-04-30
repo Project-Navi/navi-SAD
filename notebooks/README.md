@@ -21,8 +21,12 @@ fail on `import pandas` / `import matplotlib`. Both extras are
 required.
 
 This adds the deps to `.venv` and registers a project-local kernel at
-`.venv/share/jupyter/kernels/python3` — the kernelspec travels with the
-venv, so the setup is reproducible per `uv.lock`.
+`.venv/share/jupyter/kernels/python3` — the kernelspec ships with the
+venv, so the dependency set is pinned via `uv.lock`. (This is *dependency
+pinning*, not full reproducibility: hardware, OS, Python build, and
+non-determinism in any model/library used at runtime are not controlled
+here. Treat the notebook as exploratory — load-bearing work belongs in
+`src/navi_sad/` with tests.)
 
 ## Launching JupyterLab
 
