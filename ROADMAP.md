@@ -4,7 +4,7 @@
 
 1. **D-sweep on pilot data.** Sweep embedding dimension D from 3 to 4 on existing 40-sample records (pilot trajectories are ~77 steps; under the 2*D! eligibility policy, D=5 requires 240 steps and is infeasible on pilot data). Check whether PE changes between D=3 and D=4. If a longer-sequence run is needed to test D=5+, note this as a requirement for the synthetic HMM benchmark design.
 
-2. **Layer-stratified PE profiles.** Plot per-layer PE separation (correct vs incorrect) from L0 to L31 in the pilot data. Tests the progressive construction prediction from Shai et al. (NeurIPS 2024): if later layers have more fully constructed belief state geometry, correct/incorrect separation should grow with depth.
+2. **Layer-stratified PE profiles.** Per-layer PE structure from L0 to L31, deferred to post-Gate-3 and applied to synthetic HMM-benchmark trajectories rather than the (now closed) TruthfulQA case study. Tests the progressive construction prediction from Shai et al. (NeurIPS 2024): if later layers have more fully constructed belief state geometry, PE should track the known fractal dimension of the generating process more sharply at depth.
 
 3. **Observable genericity argument.** Write the explicit justification that per-head SAD divergence is a generic observable of the belief state, or state precisely what additional assumption is required. The chain: residual stream encodes belief state → attention is a deterministic function of it → cosine divergence is smooth → SAD delta is h(x_t) where h is smooth. Genericity must be tested empirically via embedding continuity and false-nearest-neighbor statistics.
 
@@ -26,10 +26,8 @@
 
 ## Post-validation (natural language)
 
-10. **Natural language benchmarks.** Apply validated instrument to controlled natural-language tasks: nested syntactic dependencies, multi-step reasoning with hidden variables, ambiguous pronoun resolution. Only after instrument is validated on known synthetic processes.
-
-11. **TruthfulQA revisited.** Reframe with the new hypothesis: not correctness separation, but belief-state complexity characterization. The instrument measures attractor geometry; TruthfulQA provides one regime partition among many.
+10. **Natural language benchmarks.** Once the instrument is validated on known synthetic processes (Gate 3), it may be applied to controlled natural-language regimes. No specific datasets or tasks are committed today; the TruthfulQA case study is closed and is not being re-entered.
 
 ## Theoretical integration
 
-12. **Three-repo unification.** cd-formalization (existence theory), fd-formalization (fractal dimension theory), navi-SAD (empirical reconstruction). One instrument suite on one state space. The Shai et al. result provides the empirical anchor: transformers construct belief state geometry in their residual streams, and that geometry can be genuinely fractal.
+11. **Three-repo unification.** cd-formalization (existence theory), fd-formalization (fractal dimension theory), navi-SAD (empirical reconstruction). One instrument suite on one state space. The Shai et al. result provides the empirical anchor: transformers construct belief state geometry in their residual streams, and that geometry can be genuinely fractal.

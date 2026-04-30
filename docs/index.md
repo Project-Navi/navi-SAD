@@ -30,7 +30,9 @@ Runs softmax and linear attention in parallel on the same frozen weights, measur
 
 ## What's New
 
-**2026-03-25** --- [Pilot findings published](research/pilot-findings.md). Grand mean dead. Per-head permutation entropy (PE) alive. Gate 3 redesigned.
+**2026-04-27** --- [TruthfulQA case closed](research/pilot-findings.md). 400-sample length-matched permutation null returned p=0.96; the dense-d direction was a generation-length confound, not signal. Instrument framing pivots to dynamical-systems probe with no application claims pre-Gate-3.
+
+**2026-03-25** --- [Pilot findings published](research/pilot-findings.md). 40-sample TruthfulQA pilot: grand-mean SAD does not separate groups; per-head PE recurrence count surfaced (later killed by 400-sample replication).
 
 **2026-03-24** --- [Gate 2 passes](instrument/gate-2.md). 50 consecutive generations, zero VRAM creep.
 

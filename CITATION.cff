@@ -23,8 +23,10 @@ abstract: >-
   Per-head SAD trajectories are treated as delay-coordinate
   embeddings of the model's internal dynamical state (Takens'
   embedding theorem). Permutation entropy on these reconstructions
-  characterizes attractor geometry. The instrument is hypothesis-
-  agnostic; confabulation detection is one application among many.
+  characterizes attractor geometry. The instrument is a runtime
+  measurement tool. Validation against synthetic HMM benchmarks with
+  known fractal dimensions is in progress (Gate 3). No application
+  claims are made.
 keywords:
   - dynamical systems
   - attractor reconstruction
@@ -64,6 +66,9 @@ references:
         given-names: "Fran\\xe7ois"
     year: 2020
     collection-title: "Proceedings of ICML 2020"
+  # TruthfulQA was used as the benchmark for the closed methodological
+  # case study at 40 + 400 samples; cited for reproducibility, not as
+  # an application target.
   - type: article
     title: "TruthfulQA: Measuring How Models Mimic Human Falsehoods"
     authors:

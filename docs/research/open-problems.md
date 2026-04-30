@@ -30,17 +30,17 @@ The tiers follow the [Neel Nanda pattern](https://www.neelnanda.io/mechanistic-i
 
 ---
 
-### 2. Layer-stratified PE profiles
+### 2. Layer-stratified PE profiles (HMM benchmark)
 
-**Status:** Open. *Theoretically motivated.*
+**Status:** Open. Deferred to post-Gate-3. *Theoretically motivated.*
 
-**Problem:** The pilot found per-head PE signal, but did not analyze whether it concentrates in specific layers. Shai et al. (NeurIPS 2024) predicts that later layers have more fully constructed belief state geometry --- so correct/incorrect PE separation should grow with depth from L0 to L31.
+**Problem:** Shai et al. (NeurIPS 2024) predicts that later layers have more fully constructed belief state geometry --- so on data with known belief-state structure, per-layer PE should track that structure more sharply at depth. The natural test is the synthetic HMM benchmark from problem 6, where ground-truth fractal dimensions are known. The TruthfulQA pilot data are no longer informative for this question: the directional asymmetry that motivated layer profiles did not survive a length-matched permutation null (p=0.96).
 
-**Why it matters:** If separation grows from early to late layers, it is convergent evidence that [SAD](../theory/sad-instrument.md) observes belief state construction progressing through the layer stack. If separation concentrates in L15--21, it matches the pilot's recurring-head zone and the progressive construction prediction. If separation is flat across layers, progressive construction does not apply to this observable, which would weaken the theoretical motivation.
+**Why it matters:** If per-layer PE--vs--fractal-dimension rank correlation grows from early to late layers on the HMM benchmark, it is convergent evidence that [SAD](../theory/sad-instrument.md) observes belief state construction progressing through the layer stack. If correlation concentrates in L15--21 it matches the progressive construction prediction. If it is flat across layers, progressive construction does not apply to this observable, weakening the theoretical motivation.
 
-**What you need:** Same pilot artifacts as problem 1. Group PE results by layer, compute Cohen's d (correct vs incorrect, using the guarded implementation in `navi_sad.pilot.helpers`) per layer, plot the 32-point profile.
+**What you need:** The synthetic HMM artifacts from problem 6 (per-head SAD trajectories captured under matched-length sequences, with known fractal dimension per generating process). Group PE results by layer, compute Spearman rank correlation against fractal dimension per layer, plot the 32-point profile.
 
-**What success looks like:** A layer profile showing either depth-increasing separation (supports progressive construction), mid-late concentration (supports L15--21 prediction), or flat/random structure (falsifies this specific prediction).
+**What success looks like:** A layer profile showing either depth-increasing rank correlation (supports progressive construction), mid-late concentration (supports L15--21 prediction), or flat/random structure (falsifies this specific prediction).
 
 ---
 
@@ -68,23 +68,23 @@ The tiers follow the [Neel Nanda pattern](https://www.neelnanda.io/mechanistic-i
 
 **Problem:** Shannon PE is a single number characterizing the ordinal pattern distribution. The Renyi entropy family (parametrized by q in [0.1, 7.0]) characterizes the full *shape* of that distribution. The production C++ kernel (`navi_dsc_renyi.h`) computes Renyi entropy, Renyi complexity (Jensen-Renyi divergence from uniform), and parametric fingerprint curves. This needs to be ported to the Python signal layer.
 
-**Why it matters:** Two heads with identical Shannon PE can have completely different Renyi fingerprint shapes. Low q emphasizes rare ordinal patterns (attractor diversity); high q emphasizes dominant patterns (collapse concentration). The \( (H_q, C_q) \) fingerprint curve per head is the attractor's ordinal signature --- it tells you not just *how much* complexity there is, but *what kind*. The complexity-entropy plane was introduced by Rosso et al. (*Physical Review Letters* 99, 154102, 2007) as a joint diagnostic for distinguishing noise from chaos from periodic dynamics using Bandt-Pompe patterns. Attractor collapse in confabulation may show up as fingerprint shape change even when Shannon PE is unchanged.
+**Why it matters:** Two heads with identical Shannon PE can have completely different Renyi fingerprint shapes. Low q emphasizes rare ordinal patterns (attractor diversity); high q emphasizes dominant patterns (collapse concentration). The \( (H_q, C_q) \) fingerprint curve per head is the attractor's ordinal signature --- it tells you not just *how much* complexity there is, but *what kind*. The complexity-entropy plane was introduced by Rosso et al. (*Physical Review Letters* 99, 154102, 2007) as a joint diagnostic for distinguishing noise from chaos from periodic dynamics using Bandt-Pompe patterns. Different attractor regimes may show distinct fingerprint shapes even at constant Shannon PE.
 
 **What you need:** Python, the existing `signal/ordinal.py` infrastructure (pattern counts are already computed), and the reference C++ kernel for validation. Implementation path: add `renyi_entropy(pattern_counts, D, q)`, `renyi_complexity(pattern_counts, D, q)`, and `renyi_fingerprint(pattern_counts, D, q_range)` to `signal/ordinal.py`, all operating on the same pattern distribution that `permutation_entropy` already produces. Extend `pe_features.py` to compute fingerprint curves per head.
 
-**What success looks like:** A validated Python port that reproduces the C++ kernel's output on reference inputs, with per-head fingerprint curves computable on pilot data. Comparison of fingerprint shape between correct and incorrect groups, supplementing the scalar PE analysis.
+**What success looks like:** A validated Python port that reproduces the C++ kernel's output on reference inputs, with per-head fingerprint curves computable on the Gate 3 synthetic HMM artifacts. Comparison of fingerprint shape across HMM regimes (varying unifilarity / known fractal dimension), supplementing the scalar PE analysis.
 
 ---
 
 ### 5. Permutation null test
 
-**Status:** Recurrence count null: complete (not significant). Asymmetry null: machinery built (PR #31), not yet run on data.
+**Status:** Closed. Recurrence count null: complete (not significant). Asymmetry null and confound controls: complete (length-matched null p=0.96 — TruthfulQA case study closed; not on roadmap).
 
 **Recurrence count result:** The analysis module (`src/navi_sad/analysis/`) was built in PRs #28-29. The stratified permutation null was run on both 40-sample (p=0.25) and 400-sample (zero recurring heads) data. The recurrence count at |d|>0.5 does not survive the null. The 40-sample pilot's 342-head count was small-n inflation at n=9 incorrect.
 
-**400-sample d-landscape:** With 282 correct and 68 incorrect samples, the d-matrix shows a dense-small-effect regime (max |d|=0.58, mean |d|=0.134) with 83.4% negative direction (incorrect PE > correct PE). This reverses the pilot's 4.6:1 positive asymmetry. The directional pattern is an observed candidate, not a validated result.
+**400-sample d-landscape:** With 282 correct and 68 incorrect samples, the d-matrix showed a dense-small-effect regime (max |d|=0.58, mean |d|=0.134) with 83.4% negative direction (incorrect PE > correct PE), reversing the pilot's 4.6:1 positive asymmetry.
 
-**Confound controls (PR #31, built, not yet run):** Head-level signed asymmetry null (two-sided primary, one-sided negative secondary), length-matched analysis with pair-restricted null, and unanimous-only label robustness check. The asymmetry statistic operates at the head level (1024 heads, per-head mean d across 12 combos) to avoid cell-level pseudoreplication. Baseline deviation diagnostic reports subset-vs-full baseline drift. Execute via `scripts/pe_confound_controls.py`.
+**Confound controls (PR #31, executed):** The length-matched permutation null (pair-restricted on token count) returned p=0.96. The dense-small negative directional asymmetry was a generation-length confound, not signal. Head-level signed asymmetry null and unanimous-only robustness check were also run as part of the same controls; with the length-matched null at p=0.96 the directional asymmetry on TruthfulQA is closed as an observed pattern with no inferential support. The TruthfulQA application thread is closed; the instrument framing pivots to dynamical-systems probe with no application claims pre-Gate-3.
 
 ---
 

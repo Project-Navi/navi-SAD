@@ -2,6 +2,10 @@
 
 Research milestones and instrument changes. This is a research changelog, not a software release log.
 
+## 2026-04-27 --- Length-Matched Null, TruthfulQA Case Closed
+
+Confound controls executed on 400-sample data. Length-matched permutation null returned p=0.96. The dense-small negative directional asymmetry was a generation-length confound, not signal. TruthfulQA application case closed; instrument framing pivots to dynamical-systems probe with no application claims pre-Gate-3 (synthetic HMM benchmarks).
+
 ## 2026-03-28 --- Confound Controls Machinery (PR #31)
 
 Signed asymmetry null (head-level, two-sided primary), length-matched analysis (pair-restricted null), unanimous-only analysis. New modules: matching.py, selection.py. Baseline deviation diagnostic. 401 CPU tests. Code built and tested; not yet run on 400-sample data.

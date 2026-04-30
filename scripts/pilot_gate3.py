@@ -1,11 +1,17 @@
 #!/usr/bin/env python3
-"""Gate 3 Pilot -- 40-sample TruthfulQA characterization.
+"""Gate 3 Pilot -- TruthfulQA case study (closed; negative result motivating Gate 3 redesign around synthetic HMMs).
 
 Two entry points:
   python scripts/pilot_gate3.py                    # run generation
   python scripts/pilot_gate3.py --analyze PATH     # analyze reviewed results
 
 Implements: docs/plans/GATE3_PILOT_SPEC.md (post-audit revision)
+
+Status: The TruthfulQA application thread is closed. The 400-sample
+length-matched permutation null returned p=0.96; the dense-d direction
+was a generation-length confound, not signal. Retained for
+reproducibility of the closed methodological case study; not the basis
+of any current application claim.
 """
 
 from __future__ import annotations
@@ -793,7 +799,10 @@ def _get_transformers_version() -> str:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Gate 3 Pilot -- 40-sample TruthfulQA characterization"
+        description=(
+            "Gate 3 Pilot -- TruthfulQA case study (closed; negative result "
+            "motivating Gate 3 redesign around synthetic HMMs)"
+        )
     )
     parser.add_argument(
         "--analyze",
