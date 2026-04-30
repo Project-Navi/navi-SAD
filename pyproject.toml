@@ -38,7 +38,7 @@ dev = [
 notebook = [
     "ipykernel>=7.2.0",
     "ipywidgets>=8.1.8",
-    "jupyterlab>=4.5.6",
+    "jupyterlab>=4.5.7",  # GHSA-rch3-82jr-f9w9 — CommandLinker XSS auth-token theft (high), patched in 4.5.7
     "ordpy>=1.2.2",
     "seaborn>=0.13.2",
 ]
